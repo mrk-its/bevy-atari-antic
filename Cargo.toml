@@ -1,0 +1,16 @@
+[package]
+edition = "2021"
+name = "bevy_atari_antic"
+version = "0.1.0"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+bevy = {path = "../bevy", default_features = false, features = ["bevy_core_pipeline", "bevy_render2", "bevy_pbr2", "bevy_winit", "x11"]}
+bytemuck = "1.7"
+crevice = {path = "../bevy/crates/crevice/"}
+wgpu = { version = "0.11", features = ["spirv", "webgl"] }
+
+[[example]]
+name = "atari_antic"
+path = "examples/atari_antic.rs"
