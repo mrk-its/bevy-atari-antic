@@ -10,10 +10,15 @@ bevy = {path = "../..//bevy", default_features = false, features = ["bevy_core_p
 bytemuck = "1.7"
 crevice = {path = "../../bevy/crates/crevice/"}
 wgpu = { version = "0.11", features = ["spirv", "webgl"] }
-
-[patch.crates-io]
-wgpu = { path = "../../wgpu/wgpu"}
+parking_lot = "0.11"
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+web-sys = { version = "0.3", features = ["Storage"]}
 
 [[example]]
 name = "atari_antic"
 path = "examples/atari_antic.rs"
+
+[profile.release]
+# opt-level = "z"
+# lto = true
+# codegen-units = 1

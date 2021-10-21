@@ -1,106 +1,100 @@
-use bevy::{
-    core_pipeline::Transparent3d,
-    ecs::{
+use std::sync::Arc;
+use parking_lot::RwLock;
+use bevy::{core_pipeline::Transparent3d, ecs::{
         prelude::*,
         system::{lifetimeless::*, SystemParamItem},
-    },
-    pbr2::{DrawMesh, MeshUniform, PbrShaders, SetMeshViewBindGroup, SetTransformBindGroup},
-    prelude::{AddAsset, App, Handle, Plugin},
-    render2::{
-        mesh::Mesh,
-        render_asset::{PrepareAssetError, RenderAsset, RenderAssetPlugin, RenderAssets},
-        render_component::ExtractComponentPlugin,
-        render_phase::{
+    }, pbr2::{DrawMesh, MeshUniform, PbrShaders, PbrViewBindGroup, SetTransformBindGroup, ViewLights}, prelude::{AddAsset, App, Handle, Plugin}, render2::{RenderApp, RenderStage, mesh::Mesh, render_asset::{PrepareAssetError, RenderAsset, RenderAssetPlugin, RenderAssets}, render_component::ExtractComponentPlugin, render_phase::{
             AddRenderCommand, DrawFunctions, RenderCommand, RenderPhase, TrackedRenderPass,
-        },
-        render_resource::*,
-        renderer::{RenderDevice, RenderQueue},
-        shader::Shader,
-        texture::{BevyDefault, TextureFormatPixelInfo},
-        view::ExtractedView,
-        RenderApp, RenderStage,
-    },
-};
+        }, render_resource::*, renderer::{RenderDevice, RenderQueue}, shader::Shader, texture::{BevyDefault, TextureFormatPixelInfo}, view::{ExtractedView, ViewUniformOffset}}};
 pub mod atari_data;
 pub mod resources;
 
 use resources::{AtariPalette, GTIA1Regs, GTIA2Regs, GTIA3Regs};
 
-use atari_data::AtariData;
+use atari_data::{AtariData, AtariDataInner, MEMORY_UNIFORM_SIZE};
 
 use crevice::std140::{AsStd140, Std140};
 
 #[derive(Clone)]
 pub struct GpuAtariData {
-    _memory1_buffer: Buffer,
-
     _palette_buffer: Buffer,
     _buffer1: Buffer,
     _buffer2: Buffer,
     _buffer3: Buffer,
-    // _texture: Texture,
-    // _sampler: Sampler,
-    // _texture_view: TextureView,
+    _texture: Texture,
+    _texture_view: TextureView,
     bind_group: BindGroup,
 }
 
 impl RenderAsset for AtariData {
-    type ExtractedAsset = AtariData;
+    type ExtractedAsset = Arc<RwLock<AtariDataInner>>;
     type PreparedAsset = GpuAtariData;
     type Param = (SRes<RenderDevice>, SRes<RenderQueue>, SRes<CustomPipeline>);
     fn extract_asset(&self) -> Self::ExtractedAsset {
-        self.clone()
+        self.inner.clone()
     }
 
     fn prepare_asset(
         extracted_asset: Self::ExtractedAsset,
         (render_device, render_queue, custom_pipeline): &mut SystemParamItem<Self::Param>,
     ) -> Result<Self::PreparedAsset, PrepareAssetError<Self::ExtractedAsset>> {
-        // let texture_descriptor = wgpu::TextureDescriptor {
-        //     size: Extent3d {
-        //         width: 256,
-        //         height: 11,
-        //         depth_or_array_layers: 1,
-        //     },
-        //     dimension: TextureDimension::D2,
-        //     format: wgpu::TextureFormat::Rgba32Uint,
-        //     label: None,
-        //     mip_level_count: 1,
-        //     sample_count: 1,
-        //     usage: wgpu::TextureUsages::STORAGE_BINDING | wgpu::TextureUsages::COPY_DST,
-        // };
+        let inner = extracted_asset.read();
+        let texture_descriptor = wgpu::TextureDescriptor {
+            size: Extent3d {
+                width: 256,
+                height: 11,
+                depth_or_array_layers: 1,
+            },
+            dimension: TextureDimension::D2,
+            format: wgpu::TextureFormat::R8Uint,
+            label: Some("data_texture"),
+            mip_level_count: 1,
+            sample_count: 1,
+            usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
+        };
 
-        // let texture = render_device.create_texture(&texture_descriptor);
-        // let texture_view = texture.create_view(&TextureViewDescriptor::default());
+        let _texture = render_device.create_texture(&texture_descriptor);
+        let _texture_view = _texture.create_view(&TextureViewDescriptor::default());
         // let sampler_descriptor = wgpu::SamplerDescriptor::default();
 
-        // let sampler = render_device.create_sampler(&sampler_descriptor);
+        // let _sampler = render_device.create_sampler(&sampler_descriptor);
         let memory_data = unsafe {
-            std::slice::from_raw_parts(extracted_asset.memory.as_ptr(), AtariData::MEMORY_UNIFORM_SIZE)
+            let ptr = inner.memory.as_ptr();
+            std::slice::from_raw_parts(ptr, MEMORY_UNIFORM_SIZE * 3)
         };
-        let memory1_buffer = render_device.create_buffer_with_data(&BufferInitDescriptor {
-            contents: memory_data,
+        let _memory1_buffer = render_device.create_buffer_with_data(&BufferInitDescriptor {
+            contents: &memory_data[0 * MEMORY_UNIFORM_SIZE..1 * MEMORY_UNIFORM_SIZE],
             label: None,
             usage: BufferUsages::UNIFORM | BufferUsages::COPY_DST,
         });
+        // let _memory2_buffer = render_device.create_buffer_with_data(&BufferInitDescriptor {
+        //     contents: &memory_data[1 * MEMORY_UNIFORM_SIZE .. 2 * MEMORY_UNIFORM_SIZE],
+        //     label: None,
+        //     usage: BufferUsages::UNIFORM | BufferUsages::COPY_DST,
+        // });
+        // let _memory3_buffer = render_device.create_buffer_with_data(&BufferInitDescriptor {
+        //     contents: &memory_data[2 * MEMORY_UNIFORM_SIZE .. 3 * MEMORY_UNIFORM_SIZE],
+        //     label: None,
+        //     usage: BufferUsages::UNIFORM | BufferUsages::COPY_DST,
+        // });
 
-        let palette_buffer = render_device.create_buffer_with_data(&BufferInitDescriptor {
-            contents: extracted_asset.palette.as_std140().as_bytes(),
+        let _palette_buffer = render_device.create_buffer_with_data(&BufferInitDescriptor {
+            contents: inner.palette.as_std140().as_bytes(),
             label: None,
             usage: BufferUsages::UNIFORM | BufferUsages::COPY_DST,
         });
-        let buffer1 = render_device.create_buffer_with_data(&BufferInitDescriptor {
-            contents: extracted_asset.gtia1.as_std140().as_bytes(),
+        let _buffer1 = render_device.create_buffer_with_data(&BufferInitDescriptor {
+            contents: inner.gtia1.as_std140().as_bytes(),
             label: None,
             usage: BufferUsages::UNIFORM | BufferUsages::COPY_DST,
         });
-        let buffer2 = render_device.create_buffer_with_data(&BufferInitDescriptor {
-            contents: extracted_asset.gtia2.as_std140().as_bytes(),
+        let _buffer2 = render_device.create_buffer_with_data(&BufferInitDescriptor {
+            contents: inner.gtia2.as_std140().as_bytes(),
             label: None,
             usage: BufferUsages::UNIFORM | BufferUsages::COPY_DST,
         });
-        let buffer3 = render_device.create_buffer_with_data(&BufferInitDescriptor {
-            contents: extracted_asset.gtia3.as_std140().as_bytes(),
+        let _buffer3 = render_device.create_buffer_with_data(&BufferInitDescriptor {
+            contents: inner.gtia3.as_std140().as_bytes(),
             label: None,
             usage: BufferUsages::UNIFORM | BufferUsages::COPY_DST,
         });
@@ -108,75 +102,51 @@ impl RenderAsset for AtariData {
             entries: &[
                 BindGroupEntry {
                     binding: 0,
-                    resource: buffer1.as_entire_binding(),
+                    resource: _buffer1.as_entire_binding(),
                 },
                 BindGroupEntry {
                     binding: 1,
-                    resource: buffer2.as_entire_binding(),
+                    resource: _buffer2.as_entire_binding(),
                 },
                 BindGroupEntry {
                     binding: 2,
-                    resource: buffer3.as_entire_binding(),
+                    resource: _buffer3.as_entire_binding(),
                 },
                 BindGroupEntry {
                     binding: 3,
-                    resource: palette_buffer.as_entire_binding(),
+                    resource: _palette_buffer.as_entire_binding(),
                 },
                 BindGroupEntry {
                     binding: 4,
-                    resource: memory1_buffer.as_entire_binding(),
+                    resource: BindingResource::TextureView(&_texture_view),
                 },
-
-                // BindGroupEntry {
-                //     binding: 4,
-                //     resource: BindingResource::TextureView(&texture_view),
-                // },
-                // BindGroupEntry {
-                //     binding: 5,
-                //     resource: BindingResource::Sampler(&sampler),
-                // },
             ],
             label: None,
             layout: &custom_pipeline.atari_data_layout,
         });
 
-        // let mut data = vec![0; 256 * 11 * 4 * 4];
-        // data[0..extracted_asset.texture_data.len()].copy_from_slice(&extracted_asset.texture_data);
-
-        // let format_size = texture_descriptor.format.pixel_size();
-        // render_queue.write_texture(
-        //     wgpu::ImageCopyTexture {
-        //         texture: &texture,
-        //         mip_level: 0,
-        //         origin: wgpu::Origin3d::ZERO,
-        //         aspect: wgpu::TextureAspect::All,
-        //     },
-        //     &data,
-        //     wgpu::ImageDataLayout {
-        //         offset: 0,
-        //         bytes_per_row: Some(
-        //             std::num::NonZeroU32::new(texture_descriptor.size.width * format_size as u32)
-        //                 .unwrap(),
-        //         ),
-        //         rows_per_image: if texture_descriptor.size.depth_or_array_layers > 1 {
-        //             std::num::NonZeroU32::new(texture_descriptor.size.height)
-        //         } else {
-        //             None
-        //         },
-        //     },
-        //     texture_descriptor.size,
-        // );
+        let format_size = texture_descriptor.format.pixel_size();
+        render_queue.write_texture(
+            _texture.as_image_copy(),
+            &inner.memory,
+            wgpu::ImageDataLayout {
+                offset: 0,
+                bytes_per_row: Some(
+                    std::num::NonZeroU32::new(texture_descriptor.size.width * format_size as u32)
+                        .unwrap(),
+                ),
+                rows_per_image: None,
+            },
+            texture_descriptor.size,
+        );
 
         Ok(Self::PreparedAsset {
-            _memory1_buffer: memory1_buffer,
-
-            _palette_buffer: palette_buffer,
-            _buffer1: buffer1,
-            _buffer2: buffer2,
-            _buffer3: buffer3,
-            // _texture: texture,
-            // _sampler: sampler,
-            // _texture_view: texture_view,
+            _palette_buffer,
+            _buffer1,
+            _buffer2,
+            _buffer3,
+            _texture,
+            _texture_view,
             bind_group,
         })
     }
@@ -261,33 +231,13 @@ impl FromWorld for CustomPipeline {
                     BindGroupLayoutEntry {
                         binding: 4,
                         visibility: ShaderStages::FRAGMENT,
-                        ty: BindingType::Buffer {
-                            ty: BufferBindingType::Uniform,
-                            has_dynamic_offset: false,
-                            min_binding_size: BufferSize::new(AtariData::MEMORY_UNIFORM_SIZE as u64),
+                        ty: BindingType::Texture {
+                            view_dimension: TextureViewDimension::D2,
+                            sample_type: wgpu::TextureSampleType::Uint,
+                            multisampled: false,
                         },
                         count: None,
                     },
-
-                    // BindGroupLayoutEntry {
-                    //     binding: 4,
-                    //     visibility: ShaderStages::FRAGMENT,
-                    //     ty: BindingType::StorageTexture {
-                    //         access: wgpu::StorageTextureAccess::ReadOnly,
-                    //         format: wgpu::TextureFormat::Rgba32Uint,
-                    //         view_dimension: TextureViewDimension::D2,
-                    //     },
-                    //     count: None,
-                    // },
-                    // BindGroupLayoutEntry {
-                    //     binding: 5,
-                    //     visibility: ShaderStages::FRAGMENT,
-                    //     ty: BindingType::Sampler {
-                    //         filtering: false,
-                    //         comparison: false,
-                    //     },
-                    //     count: None,
-                    // },
                 ],
                 label: Some("atari_data_layout"),
             });
@@ -301,7 +251,6 @@ impl FromWorld for CustomPipeline {
                 &pbr_pipeline.view_layout,
                 &atari_data_layout,
                 &pbr_pipeline.mesh_layout,
-                //                &data_texture_layout,
             ],
         });
 
@@ -417,6 +366,30 @@ pub fn queue_custom(
     }
 }
 
+pub struct SetMeshViewBindGroup<const I: usize>;
+impl<const I: usize> RenderCommand<Transparent3d> for SetMeshViewBindGroup<I> {
+    type Param = SQuery<(
+        Read<ViewUniformOffset>,
+        Read<ViewLights>,
+        Read<PbrViewBindGroup>,
+    )>;
+    #[inline]
+    fn render<'w>(
+        view: Entity,
+        _item: &Transparent3d,
+        view_query: SystemParamItem<'w, '_, Self::Param>,
+        pass: &mut TrackedRenderPass<'w>,
+    ) {
+        let (view_uniform, view_lights, pbr_view_bind_group) = view_query.get(view).unwrap();
+        pass.set_bind_group(
+            I,
+            &pbr_view_bind_group.value,
+            &[view_uniform.offset, view_lights.gpu_light_binding_index],
+        );
+    }
+}
+
+
 type DrawCustom = (
     SetCustomMaterialPipeline,
     SetMeshViewBindGroup<0>,
@@ -446,5 +419,15 @@ impl RenderCommand<Transparent3d> for SetCustomMaterialPipeline {
         // let image_handle = image_assets.into_inner().get(image_handle).unwrap();
         pass.set_render_pipeline(&custom_pipeline.into_inner().pipeline);
         pass.set_bind_group(1, &gpu_atari_data.bind_group, &[]);
+        // pass.set_bind_group(3, &gpu_atari_data.texture_bind_group, &[]);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn test_vec() {
+        let v: Vec<u8> = Vec::with_capacity(16);
+        assert!(v.capacity() == 16);
     }
 }

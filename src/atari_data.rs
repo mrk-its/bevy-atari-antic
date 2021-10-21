@@ -1,18 +1,30 @@
+use std::sync::Arc;
+
 use bevy::math::vec2;
 use bevy::reflect::TypeUuid;
 use bevy::render2::mesh::{Indices, Mesh};
 use wgpu::PrimitiveTopology;
+use parking_lot::{RwLock};
 
 use super::resources::{AtariPalette, GTIA1Regs, GTIA2Regs, GTIA3Regs};
 
-#[derive(TypeUuid, Clone, Debug)]
-#[uuid = "bea612c2-68ed-4432-8d9c-f03ebea97043"]
-pub struct AtariData {
+type CustomType = f32;
+pub const MEMORY_UNIFORM_SIZE: usize = 16384;
+
+#[derive(Default)]
+pub struct AtariDataInner {
     pub memory: Vec<u8>,
+    pub memory_used: usize,
     pub palette: AtariPalette,
     pub gtia1: GTIA1Regs,
     pub gtia2: GTIA2Regs,
     pub gtia3: GTIA3Regs,
+}
+
+#[derive(TypeUuid, Clone)]
+#[uuid = "bea612c2-68ed-4432-8d9c-f03ebea97043"]
+pub struct AtariData {
+    pub inner: Arc<RwLock<AtariDataInner>>,
     pub positions: Vec<[f32; 3]>,
     pub custom: Vec<[f32; 4]>,
     pub uvs: Vec<[f32; 2]>,
@@ -23,12 +35,17 @@ impl Default for AtariData {
     fn default() -> Self {
         // max 30 lines of text mode and 240 lines x 48 bytes / line
         // let texture_data = Vec::with_capacity(30 * 1024 + 240 * 48);
+        let mut memory = Vec::with_capacity(256 * 11 * 4 * 4);
+        memory.resize(memory.capacity(), 0);
         Self {
-            memory: Vec::with_capacity(AtariData::MEMORY_UNIFORM_SIZE),
-            palette: AtariPalette::default(),
-            gtia1: GTIA1Regs::default(),
-            gtia2: GTIA2Regs::default(),
-            gtia3: GTIA3Regs::default(),
+            inner: Arc::new(RwLock::new(AtariDataInner {
+                memory,
+                memory_used: 0,
+                palette: AtariPalette::default(),
+                gtia1: GTIA1Regs::default(),
+                gtia2: GTIA2Regs::default(),
+                gtia3: GTIA3Regs::default(),
+            })),
             positions: Default::default(),
             custom: Default::default(),
             uvs: Default::default(),
@@ -38,18 +55,16 @@ impl Default for AtariData {
 }
 
 impl AtariData {
-    pub const MEMORY_UNIFORM_SIZE: usize = 2048;
-    pub fn reserve_antic_memory(&mut self, len: usize) -> &mut [u8] {
-        assert!(self.memory.capacity() == Self::MEMORY_UNIFORM_SIZE);
-        let dst_offset = self.memory.len();
-        assert!(dst_offset + len <= self.memory.capacity());
-        unsafe {
-            self.memory.set_len(dst_offset + len);
-        }
-        return &mut self.memory[dst_offset..dst_offset + len];
+    pub fn reserve_antic_memory(&mut self, data: &[u8]) {
+        let mut inner = self.inner.write();
+        let dst_offset = inner.memory_used;
+        assert!(dst_offset + data.len() <= inner.memory.len());
+        inner.memory_used += data.len();
+        inner.memory[dst_offset..dst_offset + data.len()].copy_from_slice(data);
     }
 
     pub fn clear(&mut self) {
+        self.inner.write().memory_used = 0;
         self.positions.clear();
         self.custom.clear();
         self.uvs.clear();

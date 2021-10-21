@@ -55,6 +55,14 @@ struct GTIA3 {
     prior: vec4<i32>;  // [prior, unused, grafm, unused]
 };
 
+
+struct MemBlock {
+    data: array<vec4<u32>, 4>;
+};
+
+let memory_uniform_size: i32 = 16384;
+let memory_uniform_size_blocks: i32 = 128;
+
 [[block]]
 struct GTIA1Regs {
     regs: array<GTIA1, 240>;
@@ -74,10 +82,22 @@ struct GTIA3Regs {
 struct Palette {
     palette: array<vec4<f32>, 256>;
 };
-[[block]]
-struct Memory {
-    memory: array<vec4<u32>, 128>;  // 1024
-};
+
+// [[block]]
+// struct MemA {
+//     data: array<MemBlock, 256>;
+// };
+
+// [[block]]
+// struct MemB {
+//     memory: array<vec4<u32>, memory_uniform_size_blocks>;
+// };
+
+// [[block]]
+// struct MemC {
+//     memory: array<vec4<u32>, memory_uniform_size_blocks>;
+// };
+
 [[group(1), binding(0)]]
 var<uniform> gtia1_regs: GTIA1Regs;
 
@@ -91,7 +111,21 @@ var<uniform> gtia3_regs: GTIA3Regs;
 var<uniform> palette: Palette;
 
 [[group(1), binding(4)]]
-var<uniform> memory1: Memory;
+var memory: texture_2d<u32>;
+
+
+// [[group(1), binding(4)]]
+// var<uniform> memory1: MemA;
+
+// [[group(1), binding(6)]]
+// var<uniform> memory2: MemB;
+
+// [[group(1), binding(7)]]
+// var<uniform> memory3: MemC;
+
+
+// [[group(1), binding(5)]]
+// var mem_sampler: sampler;
 
 
 fn get_color_reg(scan_line: i32, k: i32) -> i32 {
@@ -113,9 +147,28 @@ fn get_pm_pixels(px: vec4<f32>, w: f32, scan_line: i32, msize: vec4<f32>, hpos: 
 }
 
 fn get_memory(offset: i32) -> i32 {
-    let pixel = offset / 16;
-    return i32((memory1.memory[pixel][(offset / 4) & 3] >> u32((offset & 3) * 8)) & 0xffu);
-}
+    // let pixel = offset >> 4u;
+    // let w = pixel & 0xff;
+    // let h = pixel >> 8u;
+    // let v: vec4<i32> = textureLoad(memory, vec2<i32>(w, h), 0);
+    // return i32(v[(offset >> 2u) & 3] >> u32((offset & 3) * 8) & 0xff);
+    // let v: vec4<u32> = textureLoad(memory, vec2<i32>(w, h), 0);
+    // return i32(v[(offset >> 2u) & 3] >> u32((offset & 3) * 8) & 0xffu);
+    let w = offset & 0xff;
+    let h = offset >> 8u;
+    let v: vec4<u32> = textureLoad(memory, vec2<i32>(w, h), 0);
+    return i32(v.x & 0xffu);
+    //return i32(v[(offset >> 2u) & 3]);
+ }
+//     switch(offset / memory_uniform_size) {
+//         case 0: {
+//             return i32((memory1.data[offset / 128].data[offset / 16 & 7][offset / 4 & 3] >> u32((offset & 3) * 8)) & 0xffu);
+//         }
+//         default: {
+//             return 0;
+//         }
+//     }
+// }
 
 [[stage(fragment)]]
 fn fragment(
@@ -186,9 +239,15 @@ fn fragment(
         let n = i32(w);
         let frac = w - f32(n);
 
+        let offset = video_memory_offset + n;
+        // let c = i32((memory1.data[offset / 64].data[(offset / 16) & 3][(offset / 4) & 3] >> u32((offset & 3) * 8)) & 0xffu);
+        // let c = i32(0);
         let c = get_memory(video_memory_offset + n);
         let inv = c >> 7u;
         let offs = (c & 0x7f) * 8 + y;
+        let offset = charset_memory_offset + offs;
+        // var byte = i32((memory1.data[offset / 64].data[(offset / 16) & 3][(offset / 4) & 3] >> u32((offset & 3) * 8)) & 0xffu);
+        // let byte = i32(0);
         var byte = get_memory(charset_memory_offset + offs);
 
         if(gtia_mode == 0) {
