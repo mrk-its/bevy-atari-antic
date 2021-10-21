@@ -1,5 +1,13 @@
-use bevy::{PipelinedDefaultPlugins, diagnostic::{FrameTimeDiagnosticsPlugin, LogDiagnosticsPlugin}, ecs::prelude::*, math::Vec3, prelude::{App, Assets, GlobalTransform, Handle, HandleUntyped, Transform}, reflect::TypeUuid, render2::{camera::OrthographicCameraBundle, mesh::Mesh, renderer::RenderDevice}, window::WindowDescriptor};
-use bevy_atari_antic::atari_data::{AtariData, AtariDataInner};
+use bevy::{
+    ecs::prelude::*,
+    math::Vec3,
+    prelude::{App, Assets, GlobalTransform, Handle, HandleUntyped, Transform},
+    reflect::TypeUuid,
+    render2::{camera::OrthographicCameraBundle, mesh::Mesh},
+    window::WindowDescriptor,
+    PipelinedDefaultPlugins,
+};
+use bevy_atari_antic::atari_data::AtariData;
 use bevy_atari_antic::AtariAnticPlugin;
 
 pub const ANTIC_MESH_HANDLE: HandleUntyped =
@@ -25,7 +33,6 @@ fn main() {
     }
     app.add_plugins(PipelinedDefaultPlugins)
         // .add_plugin(FrameTimeDiagnosticsPlugin::default())
-        .add_plugin(LogDiagnosticsPlugin::default())
         .add_plugin(AtariAnticPlugin)
         .add_startup_system(setup)
         .add_system(update)
@@ -34,24 +41,19 @@ fn main() {
         .run();
 }
 
-fn update(
-    mut atari_data_assets: ResMut<Assets<AtariData>>,
-    query: Query<&Handle<AtariData>>,
-) {
+fn update(mut atari_data_assets: ResMut<Assets<AtariData>>, query: Query<&Handle<AtariData>>) {
     for handle in query.iter() {
         if let Some(atari_data) = atari_data_assets.get_mut(handle) {
             let mut inner = atari_data.inner.write();
             inner.memory[1024] += 1;
             inner.memory[1024 + 31] += 1;
         }
-
     }
 }
 
 fn setup(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
-    render_device: Res<RenderDevice>,
     mut atari_data_assets: ResMut<Assets<AtariData>>,
 ) {
     let mut atari_data = AtariData::default();
@@ -62,7 +64,7 @@ fn setup(
     atari_data.insert_mode_line(136, 256, 8, 2, 0, 0, 1024, 0);
     atari_data.insert_mode_line(144, 256, 8, 0, 0, 0, 1024, 0);
 
-    let mem = atari_data.reserve_antic_memory(include_bytes!("charset.dat"));
+    atari_data.reserve_antic_memory(include_bytes!("charset.dat"));
     atari_data.reserve_antic_memory(&[
         0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
         0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
