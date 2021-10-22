@@ -1,19 +1,42 @@
-use std::sync::Arc;
-use parking_lot::RwLock;
-use bevy::{core_pipeline::Transparent3d, ecs::{
+use bevy::{
+    core_pipeline::Transparent3d,
+    ecs::{
         prelude::*,
         system::{lifetimeless::*, SystemParamItem},
-    }, pbr2::{DrawMesh, MeshUniform, PbrShaders, PbrViewBindGroup, SetTransformBindGroup, ViewLights}, prelude::{AddAsset, App, Handle, Plugin}, render2::{RenderApp, RenderStage, mesh::Mesh, render_asset::{PrepareAssetError, RenderAsset, RenderAssetPlugin, RenderAssets}, render_component::ExtractComponentPlugin, render_phase::{
+    },
+    pbr2::{
+        DrawMesh, MeshUniform, PbrShaders, PbrViewBindGroup, SetTransformBindGroup, ViewLights,
+    },
+    prelude::{AddAsset, App, Handle, Plugin},
+    render2::{
+        mesh::Mesh,
+        render_asset::{PrepareAssetError, RenderAsset, RenderAssetPlugin, RenderAssets},
+        render_component::ExtractComponentPlugin,
+        render_phase::{
             AddRenderCommand, DrawFunctions, RenderCommand, RenderPhase, TrackedRenderPass,
-        }, render_resource::*, renderer::{RenderDevice, RenderQueue}, shader::Shader, texture::{BevyDefault, TextureFormatPixelInfo}, view::{ExtractedView, ViewUniformOffset}}};
+        },
+        render_resource::*,
+        renderer::{RenderDevice, RenderQueue},
+        shader::Shader,
+        texture::{BevyDefault, TextureFormatPixelInfo},
+        view::{ExtractedView, ViewUniformOffset},
+        RenderApp, RenderStage,
+    },
+};
+use parking_lot::RwLock;
+use std::sync::Arc;
 pub mod atari_data;
 pub mod resources;
+use wgpu::BufferDescriptor;
 
 use resources::{AtariPalette, GTIA1Regs, GTIA2Regs, GTIA3Regs};
 
 pub use atari_data::{AnticData, AnticDataInner, MEMORY_UNIFORM_SIZE};
 
 use crevice::std140::{AsStd140, Std140};
+
+// pub type Cache = HashMap<Handle<GpuAnticData>, <A as RenderAsset>::PreparedAsset>;
+
 
 #[derive(Clone)]
 pub struct GpuAnticData {
@@ -28,17 +51,78 @@ pub struct GpuAnticData {
 
 impl RenderAsset for AnticData {
     type ExtractedAsset = Arc<RwLock<AnticDataInner>>;
-    type PreparedAsset = GpuAnticData;
-    type Param = (SRes<RenderDevice>, SRes<RenderQueue>, SRes<CustomPipeline>);
+    type PreparedAsset = Arc<GpuAnticData>;
+    type Param = (SRes<RenderDevice>, SRes<RenderQueue>, SRes<CustomPipeline>, SResMut<Option<Arc<GpuAnticData>>>);
     fn extract_asset(&self) -> Self::ExtractedAsset {
         self.inner.clone()
     }
 
     fn prepare_asset(
         extracted_asset: Self::ExtractedAsset,
-        (render_device, render_queue, custom_pipeline): &mut SystemParamItem<Self::Param>,
+        (render_device, render_queue, custom_pipeline, cache): &mut SystemParamItem<Self::Param>,
     ) -> Result<Self::PreparedAsset, PrepareAssetError<Self::ExtractedAsset>> {
         let inner = extracted_asset.read();
+
+        if cache.is_none() {
+            cache.replace(Self::create_gpu_data(&render_device, &custom_pipeline));
+        }
+
+        let gpu_data = (**cache).as_ref().unwrap();
+
+        let memory_data = unsafe {
+            let ptr = inner.memory.as_ptr();
+            std::slice::from_raw_parts(ptr, MEMORY_UNIFORM_SIZE * 3)
+        };
+
+        render_queue.write_buffer(
+            &gpu_data._palette_buffer,
+            0,
+            inner.palette.as_std140().as_bytes(),
+        );
+
+        render_queue.write_buffer(
+            &gpu_data._buffer1,
+            0,
+            inner.gtia1.as_std140().as_bytes(),
+        );
+
+        render_queue.write_buffer(
+            &gpu_data._buffer2,
+            0,
+            inner.gtia2.as_std140().as_bytes(),
+        );
+
+        render_queue.write_buffer(
+            &gpu_data._buffer3,
+            0,
+            inner.gtia3.as_std140().as_bytes(),
+        );
+
+
+        render_queue.write_texture(
+            gpu_data._texture.as_image_copy(),
+            &inner.memory,
+            wgpu::ImageDataLayout {
+                offset: 0,
+                bytes_per_row: Some(std::num::NonZeroU32::new(256 as u32).unwrap()),
+                rows_per_image: None,
+            },
+            Extent3d {
+                width: 256,
+                height: 11 * 4 * 4,
+                depth_or_array_layers: 1,
+            },
+        );
+
+        Ok(gpu_data.clone())
+    }
+}
+
+impl AnticData {
+    fn create_gpu_data(
+        render_device: &RenderDevice,
+        custom_pipeline: &CustomPipeline,
+    ) -> Arc<GpuAnticData> {
         let texture_descriptor = wgpu::TextureDescriptor {
             size: Extent3d {
                 width: 256,
@@ -55,49 +139,35 @@ impl RenderAsset for AnticData {
 
         let _texture = render_device.create_texture(&texture_descriptor);
         let _texture_view = _texture.create_view(&TextureViewDescriptor::default());
-        // let sampler_descriptor = wgpu::SamplerDescriptor::default();
 
-        // let _sampler = render_device.create_sampler(&sampler_descriptor);
-        let memory_data = unsafe {
-            let ptr = inner.memory.as_ptr();
-            std::slice::from_raw_parts(ptr, MEMORY_UNIFORM_SIZE * 3)
-        };
-        let _memory1_buffer = render_device.create_buffer_with_data(&BufferInitDescriptor {
-            contents: &memory_data[0 * MEMORY_UNIFORM_SIZE..1 * MEMORY_UNIFORM_SIZE],
+        let _palette_buffer = render_device.create_buffer(&BufferDescriptor {
             label: None,
             usage: BufferUsages::UNIFORM | BufferUsages::COPY_DST,
+            size: AtariPalette::std140_size_static() as u64,
+            mapped_at_creation: false,
         });
-        // let _memory2_buffer = render_device.create_buffer_with_data(&BufferInitDescriptor {
-        //     contents: &memory_data[1 * MEMORY_UNIFORM_SIZE .. 2 * MEMORY_UNIFORM_SIZE],
-        //     label: None,
-        //     usage: BufferUsages::UNIFORM | BufferUsages::COPY_DST,
-        // });
-        // let _memory3_buffer = render_device.create_buffer_with_data(&BufferInitDescriptor {
-        //     contents: &memory_data[2 * MEMORY_UNIFORM_SIZE .. 3 * MEMORY_UNIFORM_SIZE],
-        //     label: None,
-        //     usage: BufferUsages::UNIFORM | BufferUsages::COPY_DST,
-        // });
 
-        let _palette_buffer = render_device.create_buffer_with_data(&BufferInitDescriptor {
-            contents: inner.palette.as_std140().as_bytes(),
+        let _buffer1 = render_device.create_buffer(&BufferDescriptor {
             label: None,
             usage: BufferUsages::UNIFORM | BufferUsages::COPY_DST,
+            size: GTIA1Regs::std140_size_static() as u64,
+            mapped_at_creation: false,
         });
-        let _buffer1 = render_device.create_buffer_with_data(&BufferInitDescriptor {
-            contents: inner.gtia1.as_std140().as_bytes(),
+
+        let _buffer2 = render_device.create_buffer(&BufferDescriptor {
             label: None,
             usage: BufferUsages::UNIFORM | BufferUsages::COPY_DST,
+            size: GTIA2Regs::std140_size_static() as u64,
+            mapped_at_creation: false,
         });
-        let _buffer2 = render_device.create_buffer_with_data(&BufferInitDescriptor {
-            contents: inner.gtia2.as_std140().as_bytes(),
+
+        let _buffer3 = render_device.create_buffer(&BufferDescriptor {
             label: None,
             usage: BufferUsages::UNIFORM | BufferUsages::COPY_DST,
+            size: GTIA3Regs::std140_size_static() as u64,
+            mapped_at_creation: false,
         });
-        let _buffer3 = render_device.create_buffer_with_data(&BufferInitDescriptor {
-            contents: inner.gtia3.as_std140().as_bytes(),
-            label: None,
-            usage: BufferUsages::UNIFORM | BufferUsages::COPY_DST,
-        });
+
         let bind_group = render_device.create_bind_group(&BindGroupDescriptor {
             entries: &[
                 BindGroupEntry {
@@ -125,22 +195,7 @@ impl RenderAsset for AnticData {
             layout: &custom_pipeline.atari_data_layout,
         });
 
-        let format_size = texture_descriptor.format.pixel_size();
-        render_queue.write_texture(
-            _texture.as_image_copy(),
-            &inner.memory,
-            wgpu::ImageDataLayout {
-                offset: 0,
-                bytes_per_row: Some(
-                    std::num::NonZeroU32::new(texture_descriptor.size.width * format_size as u32)
-                        .unwrap(),
-                ),
-                rows_per_image: None,
-            },
-            texture_descriptor.size,
-        );
-
-        Ok(Self::PreparedAsset {
+        Arc::new(GpuAnticData {
             _palette_buffer,
             _buffer1,
             _buffer2,
@@ -151,6 +206,7 @@ impl RenderAsset for AnticData {
         })
     }
 }
+
 pub struct AtariAnticPlugin;
 
 impl Plugin for AtariAnticPlugin {
@@ -161,6 +217,7 @@ impl Plugin for AtariAnticPlugin {
         app.sub_app(RenderApp)
             .add_render_command::<Transparent3d, DrawCustom>()
             .init_resource::<CustomPipeline>()
+            .init_resource::<Option<Arc<GpuAnticData>>>()
             .add_system_to_stage(RenderStage::Queue, queue_custom);
     }
 }
@@ -389,7 +446,6 @@ impl<const I: usize> RenderCommand<Transparent3d> for SetMeshViewBindGroup<I> {
     }
 }
 
-
 type DrawCustom = (
     SetCustomMaterialPipeline,
     SetMeshViewBindGroup<0>,
@@ -422,7 +478,6 @@ impl RenderCommand<Transparent3d> for SetCustomMaterialPipeline {
         // pass.set_bind_group(3, &gpu_atari_data.texture_bind_group, &[]);
     }
 }
-
 
 #[derive(Debug)]
 pub struct ModeLineDescr {
@@ -467,7 +522,6 @@ pub struct GTIARegs {
     pub grafm: u32,
     pub _fill: u32,
 }
-
 
 #[cfg(test)]
 mod tests {
