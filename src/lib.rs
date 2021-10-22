@@ -11,12 +11,12 @@ pub mod resources;
 
 use resources::{AtariPalette, GTIA1Regs, GTIA2Regs, GTIA3Regs};
 
-use atari_data::{AtariData, AtariDataInner, MEMORY_UNIFORM_SIZE};
+pub use atari_data::{AnticData, AnticDataInner, MEMORY_UNIFORM_SIZE};
 
 use crevice::std140::{AsStd140, Std140};
 
 #[derive(Clone)]
-pub struct GpuAtariData {
+pub struct GpuAnticData {
     _palette_buffer: Buffer,
     _buffer1: Buffer,
     _buffer2: Buffer,
@@ -26,9 +26,9 @@ pub struct GpuAtariData {
     bind_group: BindGroup,
 }
 
-impl RenderAsset for AtariData {
-    type ExtractedAsset = Arc<RwLock<AtariDataInner>>;
-    type PreparedAsset = GpuAtariData;
+impl RenderAsset for AnticData {
+    type ExtractedAsset = Arc<RwLock<AnticDataInner>>;
+    type PreparedAsset = GpuAnticData;
     type Param = (SRes<RenderDevice>, SRes<RenderQueue>, SRes<CustomPipeline>);
     fn extract_asset(&self) -> Self::ExtractedAsset {
         self.inner.clone()
@@ -42,7 +42,7 @@ impl RenderAsset for AtariData {
         let texture_descriptor = wgpu::TextureDescriptor {
             size: Extent3d {
                 width: 256,
-                height: 11,
+                height: 11 * 4 * 4,
                 depth_or_array_layers: 1,
             },
             dimension: TextureDimension::D2,
@@ -155,9 +155,9 @@ pub struct AtariAnticPlugin;
 
 impl Plugin for AtariAnticPlugin {
     fn build(&self, app: &mut App) {
-        app.add_asset::<AtariData>()
-            .add_plugin(ExtractComponentPlugin::<Handle<AtariData>>::default())
-            .add_plugin(RenderAssetPlugin::<AtariData>::default());
+        app.add_asset::<AnticData>()
+            .add_plugin(ExtractComponentPlugin::<Handle<AnticData>>::default())
+            .add_plugin(RenderAssetPlugin::<AnticData>::default());
         app.sub_app(RenderApp)
             .add_render_command::<Transparent3d, DrawCustom>()
             .init_resource::<CustomPipeline>()
@@ -342,8 +342,8 @@ impl FromWorld for CustomPipeline {
 
 pub fn queue_custom(
     transparent_3d_draw_functions: Res<DrawFunctions<Transparent3d>>,
-    antic_datas: Res<RenderAssets<AtariData>>,
-    material_meshes: Query<(Entity, &Handle<AtariData>, &MeshUniform), With<Handle<Mesh>>>,
+    antic_datas: Res<RenderAssets<AnticData>>,
+    material_meshes: Query<(Entity, &Handle<AnticData>, &MeshUniform), With<Handle<Mesh>>>,
     mut views: Query<(&ExtractedView, &mut RenderPhase<Transparent3d>)>,
 ) {
     let draw_custom = transparent_3d_draw_functions
@@ -400,9 +400,9 @@ type DrawCustom = (
 struct SetCustomMaterialPipeline;
 impl RenderCommand<Transparent3d> for SetCustomMaterialPipeline {
     type Param = (
-        SRes<RenderAssets<AtariData>>,
+        SRes<RenderAssets<AnticData>>,
         SRes<CustomPipeline>,
-        SQuery<Read<Handle<AtariData>>>,
+        SQuery<Read<Handle<AnticData>>>,
     );
     fn render<'w>(
         _view: Entity,
@@ -422,6 +422,52 @@ impl RenderCommand<Transparent3d> for SetCustomMaterialPipeline {
         // pass.set_bind_group(3, &gpu_atari_data.texture_bind_group, &[]);
     }
 }
+
+
+#[derive(Debug)]
+pub struct ModeLineDescr {
+    pub mode: u8,
+    pub scan_line: usize,
+    pub width: usize,
+    pub height: usize,
+    pub n_bytes: usize,
+    pub line_voffset: usize,
+    pub data_offset: usize,
+    pub chbase: u8,
+    pub pmbase: u8,
+    pub hscrol: u8,
+    pub video_memory_offset: usize,
+    pub charset_memory_offset: usize,
+}
+
+impl ModeLineDescr {
+    pub fn next_mode_line(&self) -> usize {
+        return self.scan_line + self.height;
+    }
+    pub fn charset_size(&self) -> usize {
+        match self.mode {
+            2..=5 => 1024,
+            6..=7 => 512,
+            _ => 0,
+        }
+    }
+}
+
+#[derive(Default, Clone, Copy, Debug)]
+pub struct GTIARegs {
+    pub colors: [u32; 8],
+    pub colors_pm: [u32; 4],
+    pub hposp: [f32; 4],
+    pub hposm: [f32; 4],
+    pub player_size: [f32; 4],
+    pub missile_size: [f32; 4],
+    pub grafp: [u32; 4],
+    pub prior: u32,
+    pub sizem: u32,
+    pub grafm: u32,
+    pub _fill: u32,
+}
+
 
 #[cfg(test)]
 mod tests {

@@ -7,8 +7,8 @@ use bevy::{
     window::WindowDescriptor,
     PipelinedDefaultPlugins,
 };
-use bevy_atari_antic::atari_data::AtariData;
-use bevy_atari_antic::AtariAnticPlugin;
+use bevy_atari_antic::atari_data::AnticData;
+use bevy_atari_antic::{AtariAnticPlugin, GTIARegs, ModeLineDescr};
 
 pub const ANTIC_MESH_HANDLE: HandleUntyped =
     HandleUntyped::weak_from_u64(Mesh::TYPE_UUID, 16056864393442354012);
@@ -36,12 +36,10 @@ fn main() {
         .add_plugin(AtariAnticPlugin)
         .add_startup_system(setup)
         .add_system(update)
-        // .add_system(update)
-        .init_resource::<AtariData>()
         .run();
 }
 
-fn update(mut atari_data_assets: ResMut<Assets<AtariData>>, query: Query<&Handle<AtariData>>) {
+fn update(mut atari_data_assets: ResMut<Assets<AnticData>>, query: Query<&Handle<AnticData>>) {
     for handle in query.iter() {
         if let Some(atari_data) = atari_data_assets.get_mut(handle) {
             let mut inner = atari_data.inner.write();
@@ -54,31 +52,137 @@ fn update(mut atari_data_assets: ResMut<Assets<AtariData>>, query: Query<&Handle
 fn setup(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
-    mut atari_data_assets: ResMut<Assets<AtariData>>,
+    mut atari_data_assets: ResMut<Assets<AnticData>>,
 ) {
-    let mut atari_data = AtariData::default();
-    atari_data.insert_mode_line(104, 256, 8, 0, 0, 0, 1024, 0);
-    atari_data.insert_mode_line(112, 256, 8, 2, 0, 0, 1024, 0);
-    atari_data.insert_mode_line(120, 256, 8, 2, 0, 0, 1024 + 40, 0);
-    atari_data.insert_mode_line(128, 256, 8, 2, 0, 0, 1024 + 80, 0);
-    atari_data.insert_mode_line(136, 256, 8, 2, 0, 0, 1024, 0);
-    atari_data.insert_mode_line(144, 256, 8, 0, 0, 0, 1024, 0);
+    let mut atari_data = AnticData::default();
 
-    atari_data.reserve_antic_memory(include_bytes!("charset.dat"));
-    atari_data.reserve_antic_memory(&[
-        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-        0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    ]);
+    let coffs = atari_data.reserve_antic_memory(1024, &mut |data| {
+        data.copy_from_slice(include_bytes!("charset.dat"))
+    });
 
-    atari_data.reserve_antic_memory(&[
-        0, 0, 50, 101, 97, 100, 121, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    ]);
+    let voffs = atari_data.reserve_antic_memory(40, &mut |data| {
+        data.copy_from_slice(&[
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        ])
+    });
+    let voffs0 = voffs;
+    atari_data.insert_mode_line(&ModeLineDescr{
+        mode: 0,
+        scan_line: 104,
+        width: 256,
+        height: 8,
+        n_bytes: 0,
+        line_voffset: 0,
+        data_offset: 0,
+        chbase: 0,
+        pmbase: 0,
+        hscrol: 0,
+        video_memory_offset: voffs,
+        charset_memory_offset: coffs,
+    });
+    atari_data.insert_mode_line(&ModeLineDescr{
+        mode: 2,
+        scan_line: 112,
+        width: 256,
+        height: 8,
+        n_bytes: 0,
+        line_voffset: 0,
+        data_offset: 0,
+        chbase: 0,
+        pmbase: 0,
+        hscrol: 0,
+        video_memory_offset: voffs,
+        charset_memory_offset: coffs,
+    });
+    let voffs = atari_data.reserve_antic_memory(40, &mut |data| {
+        data.copy_from_slice(&[
+            0, 0, 50, 101, 97, 100, 121, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        ])
+    });
 
-    atari_data.reserve_antic_memory(&[
-        0, 0, 128, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-        0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    ]);
+    atari_data.insert_mode_line(&ModeLineDescr{
+        mode: 2,
+        scan_line: 120,
+        width: 256,
+        height: 8,
+        n_bytes: 0,
+        line_voffset: 0,
+        data_offset: 0,
+        chbase: 0,
+        pmbase: 0,
+        hscrol: 0,
+        video_memory_offset: voffs,
+        charset_memory_offset: coffs,
+    });
+    let voffs = atari_data.reserve_antic_memory(40, &mut |data| {
+        data.copy_from_slice(&[
+            0, 0, 128, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        ])
+    });
+
+    atari_data.insert_mode_line(&ModeLineDescr{
+        mode: 2,
+        scan_line: 128,
+        width: 256,
+        height: 8,
+        n_bytes: 0,
+        line_voffset: 0,
+        data_offset: 0,
+        chbase: 0,
+        pmbase: 0,
+        hscrol: 0,
+        video_memory_offset: voffs,
+        charset_memory_offset: coffs,
+    });
+
+    atari_data.insert_mode_line(&ModeLineDescr{
+        mode: 2,
+        scan_line: 136,
+        width: 256,
+        height: 8,
+        n_bytes: 0,
+        line_voffset: 0,
+        data_offset: 0,
+        chbase: 0,
+        pmbase: 0,
+        hscrol: 0,
+        video_memory_offset: voffs0,
+        charset_memory_offset: coffs,
+    });
+    atari_data.insert_mode_line(&ModeLineDescr{
+        mode: 0,
+        scan_line: 144,
+        width: 256,
+        height: 8,
+        n_bytes: 0,
+        line_voffset: 0,
+        data_offset: 0,
+        chbase: 0,
+        pmbase: 0,
+        hscrol: 0,
+        video_memory_offset: voffs,
+        charset_memory_offset: coffs,
+    });
+
+
+
+    atari_data.reserve_antic_memory(40, &mut |data| {
+        data.copy_from_slice(&[
+            0, 0, 50, 101, 97, 100, 121, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        ])
+    });
+
+    atari_data.reserve_antic_memory(40, &mut |data| {
+        data.copy_from_slice(&[
+            0, 0, 128, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        ])
+    });
+
 
     let mesh = atari_data.create_mesh();
 
