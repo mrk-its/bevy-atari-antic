@@ -83,21 +83,6 @@ struct Palette {
     palette: array<vec4<f32>, 256>;
 };
 
-// [[block]]
-// struct MemA {
-//     data: array<MemBlock, 256>;
-// };
-
-// [[block]]
-// struct MemB {
-//     memory: array<vec4<u32>, memory_uniform_size_blocks>;
-// };
-
-// [[block]]
-// struct MemC {
-//     memory: array<vec4<u32>, memory_uniform_size_blocks>;
-// };
-
 [[group(1), binding(0)]]
 var<uniform> gtia1_regs: GTIA1Regs;
 
@@ -112,21 +97,6 @@ var<uniform> palette: Palette;
 
 [[group(1), binding(4)]]
 var memory: texture_2d<u32>;
-
-
-// [[group(1), binding(4)]]
-// var<uniform> memory1: MemA;
-
-// [[group(1), binding(6)]]
-// var<uniform> memory2: MemB;
-
-// [[group(1), binding(7)]]
-// var<uniform> memory3: MemC;
-
-
-// [[group(1), binding(5)]]
-// var mem_sampler: sampler;
-
 
 fn get_color_reg(scan_line: i32, k: i32) -> i32 {
     if(k <= 3) {
@@ -147,28 +117,11 @@ fn get_pm_pixels(px: vec4<f32>, w: f32, scan_line: i32, msize: vec4<f32>, hpos: 
 }
 
 fn get_memory(offset: i32) -> i32 {
-    // let pixel = offset >> 4u;
-    // let w = pixel & 0xff;
-    // let h = pixel >> 8u;
-    // let v: vec4<i32> = textureLoad(memory, vec2<i32>(w, h), 0);
-    // return i32(v[(offset >> 2u) & 3] >> u32((offset & 3) * 8) & 0xff);
-    // let v: vec4<u32> = textureLoad(memory, vec2<i32>(w, h), 0);
-    // return i32(v[(offset >> 2u) & 3] >> u32((offset & 3) * 8) & 0xffu);
     let w = offset & 0xff;
     let h = offset >> 8u;
     let v: vec4<u32> = textureLoad(memory, vec2<i32>(w, h), 0);
     return i32(v.x & 0xffu);
-    //return i32(v[(offset >> 2u) & 3]);
  }
-//     switch(offset / memory_uniform_size) {
-//         case 0: {
-//             return i32((memory1.data[offset / 128].data[offset / 16 & 7][offset / 4 & 3] >> u32((offset & 3) * 8)) & 0xffu);
-//         }
-//         default: {
-//             return 0;
-//         }
-//     }
-// }
 
 [[stage(fragment)]]
 fn fragment(
@@ -177,6 +130,8 @@ fn fragment(
 ) -> [[location(0)]] vec4<f32> {
     let c0 = u32(custom[0]);
     let c1 = u32(custom[1]);
+    let video_memory_offset = i32(custom[2]);
+    let charset_memory_offset = i32(custom[3]);
 
     let mode = i32(c0 & 0xffu);
     let start_scan_line = i32((c0 >> 8u) & 0xffu);
@@ -185,21 +140,6 @@ fn fragment(
     let hscrol = i32(c1 & 0xffu);
     let line_voffset = i32((c1 >> 8u) & 0xffu);
     let line_width = f32((c1 >> 16u) & 0xffu) * 2.0;
-
-
-    let video_memory_offset = i32(custom[2]);
-    let charset_memory_offset = i32(custom[3]);
-
-    // let video_memory_offset = 0;
-    // let charset_memory_offset = 0;
-
-    // let mode = 2;
-    // let start_scan_line = 0;
-    // let line_height = 0;
-
-
-    // let line_width = 320.0;
-
 
     let x = uv[0] * 384.0;
     let px = x - 192.0 + line_width / 2.0;
@@ -226,7 +166,7 @@ fn fragment(
     // let grid = u32(uv[0] * 256.0);
     // if((grid & 0x7u) == 0u) {
     //     ccc = vec4<f32>(0.0, 1.0, 0.0, 1.0);
-    // } elseif(((prior >> bit) & 1) > 0) {
+    // } elseif(((video_memory_offset >> bit) & 1) > 0) {
     //     ccc = vec4<f32>(1.0, 0.0, 0.0, 1.0);
     // } else {
     //     ccc = vec4<f32>(0.0, 0.0, 0.0, 1.0);
@@ -239,15 +179,10 @@ fn fragment(
         let n = i32(w);
         let frac = w - f32(n);
 
-        let offset = video_memory_offset + n;
-        // let c = i32((memory1.data[offset / 64].data[(offset / 16) & 3][(offset / 4) & 3] >> u32((offset & 3) * 8)) & 0xffu);
-        // let c = i32(0);
         let c = get_memory(video_memory_offset + n);
         let inv = c >> 7u;
         let offs = (c & 0x7f) * 8 + y;
         let offset = charset_memory_offset + offs;
-        // var byte = i32((memory1.data[offset / 64].data[(offset / 16) & 3][(offset / 4) & 3] >> u32((offset & 3) * 8)) & 0xffu);
-        // let byte = i32(0);
         var byte = get_memory(charset_memory_offset + offs);
 
         if(gtia_mode == 0) {
@@ -276,7 +211,97 @@ fn fragment(
                 }
             };
         };
+    } elseif(mode == 4 || mode == 5) {
+        let w = px_scrolled / 8.0;
+        let n = i32(w);
+        let frac = w - f32(n);
+        let bit_offs = 6u - u32(frac * 4.0) * 2u;
+
+        let c = get_memory(video_memory_offset + n);
+        let inv = c >> 7u;
+        let offs = (c & 0x7f) * 8 + y;
+        let byte = get_memory(charset_memory_offset + offs);
+        color_reg_index = (byte >> bit_offs) & 3;
+        if(inv != 0 && color_reg_index == 3) {
+            color_reg_index = 4;
+        };
+    } elseif(mode == 6 || mode == 7) {
+        let w = px_scrolled / 16.0;
+        let n = i32(w);
+        let frac = w - f32(n);
+        let bit_offs = 7u - u32(frac * 8.0);
+        var yy = y;
+        if(mode == 7) {yy = yy / 2;};
+
+        let c = get_memory(video_memory_offset + n);
+        let cc = c >> 6u;
+        let offs = (c & 0x3f) * 8 + yy;
+        let byte = get_memory(charset_memory_offset + offs);
+
+        if(((byte >> bit_offs) & 1) > 0) {
+            color_reg_index = cc + 1;
+        } else {
+            color_reg_index = 0;
+        };
+    } elseif(mode == 10) {
+        let w = px_scrolled / 16.0;
+        let n = i32(w); // byte offset
+        let frac = w - f32(n);
+        let bit_offs = 6u - u32(frac * 4.0) * 2u; // bit offset in byte
+
+        let byte = get_memory(video_memory_offset + n);
+        color_reg_index = (byte >> bit_offs) & 3;
+    } elseif(mode == 11 || mode == 12) {
+        let w = px_scrolled / 16.0;
+        let n = i32(w); // byte offset
+        let frac = w - f32(n);
+        let bit_offs = 7u - u32(frac * 8.0);
+
+        let byte = get_memory(video_memory_offset + n);
+        color_reg_index = (byte >> bit_offs) & 1;
+    } elseif(mode == 13 || mode == 14) {
+        let w = px_scrolled / 8.0;
+        let n = i32(w); // byte offset
+        let frac = w - f32(n);
+        let bit_offs = 6u - u32(frac * 4.0) * 2u; // bit offset in byte
+
+        let byte = get_memory(video_memory_offset + n);
+        color_reg_index = (byte >> bit_offs) & 3;
+
+    } elseif(mode == 15) {
+        let w = px_scrolled / 8.0;
+        let n = i32(w); // byte offset
+        let frac = w - f32(n);
+        let byte = get_memory(video_memory_offset + n);
+
+        if(gtia_mode == 0) {
+            let bit_offs = 7u - u32(frac * 8.0);
+            let pixel_val = (byte >> bit_offs) & 1;
+            color_reg_index = 3 - pixel_val;
+            hires = true;
+        } else {
+            let bit_offs = 4u - u32(frac * 2.0) * 4u; // nibble offset
+            let value = (byte >> bit_offs) & 0xf;
+            if(gtia_mode == 1) {
+                color_reg = value | gtia1_regs.regs[scan_line].color_regs1[0] & 0xf0;
+            } elseif(gtia_mode == 3) {
+                color_reg = value << 4u;
+                if(color_reg > 0) {
+                    color_reg = color_reg | gtia1_regs.regs[scan_line].color_regs1[0] & 0xf;
+                };
+            } elseif(gtia_mode == 2) {
+                if(value < 4) {
+                    color_reg_index = value + 1;
+                } elseif(value < 8) {
+                    color_reg = gtia1_regs.regs[scan_line].color_pm[value - 4];
+                } else {
+                    color_reg = gtia1_regs.regs[scan_line].color_regs1[0];
+                }
+            };
+        };
+
     }
+
     let pri0 = (prior & 1) > 0;
     let pri1 = (prior & 2) > 0;
     let pri2 = (prior & 4) > 0;
@@ -347,13 +372,5 @@ fn fragment(
     if(hires && color_reg_index == 2) {
         color_reg = (color_reg & 0xf0) | (gtia1_regs.regs[scan_line].color_regs1[2] & 0xf);
     }
-    // var out_color = vec4<f32>(0.0, 1.0, 0.0, 1.0);
-    // if(color_reg_index == 3) {
-    //     out_color = vec4<f32>(0.0, 1.0, 0.0, 1.0);
-    // } elseif(color_reg_index == 2) {
-    //     out_color = vec4<f32>(0.0, 0.0, 1.0, 1.0);
-    // }
-    // return out_color;
-
     return palette.palette[color_reg];
 }
