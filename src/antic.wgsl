@@ -121,7 +121,7 @@ fn get_memory(offset: i32) -> i32 {
     let h = offset >> 8u;
     let v: vec4<u32> = textureLoad(memory, vec2<i32>(w, h), 0);
     return i32(v.x & 0xffu);
- }
+}
 
 [[stage(fragment)]]
 fn fragment(
@@ -182,7 +182,6 @@ fn fragment(
         let c = get_memory(video_memory_offset + n);
         let inv = c >> 7u;
         let offs = (c & 0x7f) * 8 + y;
-        let offset = charset_memory_offset + offs;
         var byte = get_memory(charset_memory_offset + offs);
 
         if(gtia_mode == 0) {
