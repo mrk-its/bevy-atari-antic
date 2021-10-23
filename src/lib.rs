@@ -4,9 +4,7 @@ use bevy::{
         prelude::*,
         system::{lifetimeless::*, SystemParamItem},
     },
-    pbr2::{
-        DrawMesh, MeshUniform, PbrShaders, PbrViewBindGroup, SetTransformBindGroup, ViewLights,
-    },
+    pbr2::{DrawMesh, MeshUniform, PbrShaders, SetMeshViewBindGroup, SetTransformBindGroup},
     prelude::{AddAsset, App, Handle, Plugin},
     render2::{
         mesh::Mesh,
@@ -18,8 +16,8 @@ use bevy::{
         render_resource::*,
         renderer::{RenderDevice, RenderQueue},
         shader::Shader,
-        texture::{BevyDefault, TextureFormatPixelInfo},
-        view::{ExtractedView, ViewUniformOffset},
+        texture::BevyDefault,
+        view::ExtractedView,
         RenderApp, RenderStage,
     },
 };
@@ -37,7 +35,6 @@ use crevice::std140::{AsStd140, Std140};
 
 // pub type Cache = HashMap<Handle<GpuAnticData>, <A as RenderAsset>::PreparedAsset>;
 
-
 #[derive(Clone)]
 pub struct GpuAnticData {
     _palette_buffer: Buffer,
@@ -52,7 +49,12 @@ pub struct GpuAnticData {
 impl RenderAsset for AnticData {
     type ExtractedAsset = Arc<RwLock<AnticDataInner>>;
     type PreparedAsset = Arc<GpuAnticData>;
-    type Param = (SRes<RenderDevice>, SRes<RenderQueue>, SRes<CustomPipeline>, SResMut<Option<Arc<GpuAnticData>>>);
+    type Param = (
+        SRes<RenderDevice>,
+        SRes<RenderQueue>,
+        SRes<CustomPipeline>,
+        SResMut<Option<Arc<GpuAnticData>>>,
+    );
     fn extract_asset(&self) -> Self::ExtractedAsset {
         self.inner.clone()
     }
@@ -69,35 +71,17 @@ impl RenderAsset for AnticData {
 
         let gpu_data = (**cache).as_ref().unwrap();
 
-        let memory_data = unsafe {
-            let ptr = inner.memory.as_ptr();
-            std::slice::from_raw_parts(ptr, MEMORY_UNIFORM_SIZE * 3)
-        };
-
         render_queue.write_buffer(
             &gpu_data._palette_buffer,
             0,
             inner.palette.as_std140().as_bytes(),
         );
 
-        render_queue.write_buffer(
-            &gpu_data._buffer1,
-            0,
-            inner.gtia1.as_std140().as_bytes(),
-        );
+        render_queue.write_buffer(&gpu_data._buffer1, 0, inner.gtia1.as_std140().as_bytes());
 
-        render_queue.write_buffer(
-            &gpu_data._buffer2,
-            0,
-            inner.gtia2.as_std140().as_bytes(),
-        );
+        render_queue.write_buffer(&gpu_data._buffer2, 0, inner.gtia2.as_std140().as_bytes());
 
-        render_queue.write_buffer(
-            &gpu_data._buffer3,
-            0,
-            inner.gtia3.as_std140().as_bytes(),
-        );
-
+        render_queue.write_buffer(&gpu_data._buffer3, 0, inner.gtia3.as_std140().as_bytes());
 
         render_queue.write_texture(
             gpu_data._texture.as_image_copy(),
@@ -420,29 +404,6 @@ pub fn queue_custom(
                 });
             }
         }
-    }
-}
-
-pub struct SetMeshViewBindGroup<const I: usize>;
-impl<const I: usize> RenderCommand<Transparent3d> for SetMeshViewBindGroup<I> {
-    type Param = SQuery<(
-        Read<ViewUniformOffset>,
-        Read<ViewLights>,
-        Read<PbrViewBindGroup>,
-    )>;
-    #[inline]
-    fn render<'w>(
-        view: Entity,
-        _item: &Transparent3d,
-        view_query: SystemParamItem<'w, '_, Self::Param>,
-        pass: &mut TrackedRenderPass<'w>,
-    ) {
-        let (view_uniform, view_lights, pbr_view_bind_group) = view_query.get(view).unwrap();
-        pass.set_bind_group(
-            I,
-            &pbr_view_bind_group.value,
-            &[view_uniform.offset, view_lights.gpu_light_binding_index],
-        );
     }
 }
 
