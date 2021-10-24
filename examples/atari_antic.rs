@@ -1,17 +1,13 @@
 use bevy::{
     ecs::prelude::*,
     math::Vec3,
-    prelude::{App, Assets, GlobalTransform, Handle, HandleUntyped, Transform},
-    reflect::TypeUuid,
-    render2::{camera::OrthographicCameraBundle, mesh::Mesh},
+    prelude::{App, Assets, GlobalTransform, Handle, Transform},
+    render2::camera::OrthographicCameraBundle,
     window::WindowDescriptor,
     PipelinedDefaultPlugins,
 };
 use bevy_atari_antic::atari_data::AnticData;
-use bevy_atari_antic::{AtariAnticPlugin, GTIARegs, ModeLineDescr};
-
-pub const ANTIC_MESH_HANDLE: HandleUntyped =
-    HandleUntyped::weak_from_u64(Mesh::TYPE_UUID, 16056864393442354012);
+use bevy_atari_antic::{AtariAnticPlugin, ModeLineDescr};
 
 fn main() {
     let mut app = App::new();
@@ -49,11 +45,7 @@ fn update(mut atari_data_assets: ResMut<Assets<AnticData>>, query: Query<&Handle
     }
 }
 
-fn setup(
-    mut commands: Commands,
-    mut meshes: ResMut<Assets<Mesh>>,
-    mut atari_data_assets: ResMut<Assets<AnticData>>,
-) {
+fn setup(mut commands: Commands, mut atari_data_assets: ResMut<Assets<AnticData>>) {
     let mut atari_data = AnticData::default();
 
     let coffs = atari_data.reserve_antic_memory(1024, &mut |data| {
@@ -67,7 +59,7 @@ fn setup(
         ])
     });
     let voffs0 = voffs;
-    atari_data.insert_mode_line(&ModeLineDescr{
+    atari_data.insert_mode_line(&ModeLineDescr {
         mode: 0,
         scan_line: 104,
         width: 256,
@@ -81,7 +73,7 @@ fn setup(
         video_memory_offset: voffs,
         charset_memory_offset: coffs,
     });
-    atari_data.insert_mode_line(&ModeLineDescr{
+    atari_data.insert_mode_line(&ModeLineDescr {
         mode: 2,
         scan_line: 112,
         width: 256,
@@ -102,7 +94,7 @@ fn setup(
         ])
     });
 
-    atari_data.insert_mode_line(&ModeLineDescr{
+    atari_data.insert_mode_line(&ModeLineDescr {
         mode: 2,
         scan_line: 120,
         width: 256,
@@ -123,7 +115,7 @@ fn setup(
         ])
     });
 
-    atari_data.insert_mode_line(&ModeLineDescr{
+    atari_data.insert_mode_line(&ModeLineDescr {
         mode: 2,
         scan_line: 128,
         width: 256,
@@ -138,7 +130,7 @@ fn setup(
         charset_memory_offset: coffs,
     });
 
-    atari_data.insert_mode_line(&ModeLineDescr{
+    atari_data.insert_mode_line(&ModeLineDescr {
         mode: 2,
         scan_line: 136,
         width: 256,
@@ -152,7 +144,7 @@ fn setup(
         video_memory_offset: voffs0,
         charset_memory_offset: coffs,
     });
-    atari_data.insert_mode_line(&ModeLineDescr{
+    atari_data.insert_mode_line(&ModeLineDescr {
         mode: 0,
         scan_line: 144,
         width: 256,
@@ -167,8 +159,6 @@ fn setup(
         charset_memory_offset: coffs,
     });
 
-
-
     atari_data.reserve_antic_memory(40, &mut |data| {
         data.copy_from_slice(&[
             0, 0, 50, 101, 97, 100, 121, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
@@ -182,9 +172,6 @@ fn setup(
             0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
         ])
     });
-
-
-    let mesh = atari_data.create_mesh();
 
     {
         let mut atari_data = atari_data.inner.write();
@@ -228,13 +215,10 @@ fn setup(
 
     let atari_data_handle = atari_data_assets.add(atari_data);
 
-    let mesh_handle = meshes.add(mesh);
-
     // cube
     commands.spawn().insert_bundle((
         Transform::from_xyz(-1.0, 0.0, 0.0),
         GlobalTransform::default(),
-        mesh_handle,
         atari_data_handle,
     ));
 

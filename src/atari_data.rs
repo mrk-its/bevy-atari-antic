@@ -3,10 +3,12 @@ use std::sync::Arc;
 use bevy::math::vec2;
 use bevy::reflect::TypeUuid;
 use bevy::render2::mesh::{Indices, Mesh};
+use parking_lot::RwLock;
 use wgpu::PrimitiveTopology;
-use parking_lot::{RwLock};
 
 use super::resources::{AtariPalette, GTIA1Regs, GTIA2Regs, GTIA3Regs};
+
+use crate::AnticMesh;
 
 pub const MEMORY_UNIFORM_SIZE: usize = 16384;
 
@@ -18,16 +20,16 @@ pub struct AnticDataInner {
     pub gtia1: GTIA1Regs,
     pub gtia2: GTIA2Regs,
     pub gtia3: GTIA3Regs,
+    pub positions: Vec<[f32; 3]>,
+    pub custom: Vec<[f32; 4]>,
+    pub uvs: Vec<[f32; 2]>,
+    pub indices: Vec<u16>,
 }
 
 #[derive(TypeUuid, Clone)]
 #[uuid = "bea612c2-68ed-4432-8d9c-f03ebea97043"]
 pub struct AnticData {
     pub inner: Arc<RwLock<AnticDataInner>>,
-    pub positions: Vec<[f32; 3]>,
-    pub custom: Vec<[f32; 4]>,
-    pub uvs: Vec<[f32; 2]>,
-    pub indices: Vec<u16>,
 }
 
 impl Default for AnticData {
@@ -44,11 +46,11 @@ impl Default for AnticData {
                 gtia1: GTIA1Regs::default(),
                 gtia2: GTIA2Regs::default(),
                 gtia3: GTIA3Regs::default(),
+                positions: Default::default(),
+                custom: Default::default(),
+                uvs: Default::default(),
+                indices: Default::default(),
             })),
-            positions: Default::default(),
-            custom: Default::default(),
-            uvs: Default::default(),
-            indices: Default::default(),
         }
     }
 }
@@ -84,27 +86,27 @@ impl AnticData {
     }
 
     pub fn clear(&mut self) {
-        self.inner.write().memory_used = 0;
-        self.positions.clear();
-        self.custom.clear();
-        self.uvs.clear();
-        self.indices.clear();
+        let mut inner = self.inner.write();
+        inner.memory_used = 0;
+        inner.positions.clear();
+        inner.custom.clear();
+        inner.uvs.clear();
+        inner.indices.clear();
     }
 
-    pub fn create_mesh(&self) -> Mesh {
+    pub fn create_mesh(&self) -> AnticMesh {
         let mut mesh = Mesh::new(PrimitiveTopology::TriangleList);
-        mesh.set_attribute(Mesh::ATTRIBUTE_POSITION, self.positions.clone());
-        mesh.set_attribute(Mesh::ATTRIBUTE_UV_0, self.uvs.clone());
-        mesh.set_attribute("Vertex_ZCustom", self.custom.clone());
-        mesh.set_indices(Some(Indices::U16(self.indices.clone())));
-        mesh
+        let inner = self.inner.read();
+        mesh.set_attribute(Mesh::ATTRIBUTE_POSITION, inner.positions.clone());
+        mesh.set_attribute(Mesh::ATTRIBUTE_UV_0, inner.uvs.clone());
+        mesh.set_attribute("Vertex_ZCustom", inner.custom.clone());
+        mesh.set_indices(Some(Indices::U16(inner.indices.clone())));
+        AnticMesh(mesh)
     }
 
-    pub fn insert_mode_line(
-        &mut self,
-        mode_line: &crate::ModeLineDescr,
-    ) {
-        let index_offset = self.positions.len() as u16;
+    pub fn insert_mode_line(&mut self, mode_line: &crate::ModeLineDescr) {
+        let mut inner = self.inner.write();
+        let index_offset = inner.positions.len() as u16;
 
         let scan_line_y = mode_line.scan_line as f32 - 8.0;
 
@@ -113,31 +115,32 @@ impl AnticData {
         let south_west = vec2(-192.0, 120.0 - (scan_line_y + mode_line.height as f32));
         let south_east = vec2(192.0, 120.0 - (scan_line_y + mode_line.height as f32));
 
-        self.positions.push([south_west.x, south_west.y, 0.0]);
-        self.positions.push([north_west.x, north_west.y, 0.0]);
-        self.positions.push([north_east.x, north_east.y, 0.0]);
-        self.positions.push([south_east.x, south_east.y, 0.0]);
+        inner.positions.push([south_west.x, south_west.y, 0.0]);
+        inner.positions.push([north_west.x, north_west.y, 0.0]);
+        inner.positions.push([north_east.x, north_east.y, 0.0]);
+        inner.positions.push([south_east.x, south_east.y, 0.0]);
 
-        self.uvs.push([0.0, 1.0]);
-        self.uvs.push([0.0, 0.0]);
-        self.uvs.push([1.0, 0.0]);
-        self.uvs.push([1.0, 1.0]);
+        inner.uvs.push([0.0, 1.0]);
+        inner.uvs.push([0.0, 0.0]);
+        inner.uvs.push([1.0, 0.0]);
+        inner.uvs.push([1.0, 1.0]);
 
         let scan_line = scan_line_y as u32;
         let height = mode_line.height as u32;
         let width = mode_line.width as u32 / 2;
 
         let b0 = (mode_line.mode as u32 | (scan_line << 8) | (height << 16)) as f32;
-        let b1 = (mode_line.hscrol as u32 | ((mode_line.line_voffset as u32) << 8) | (width << 16)) as f32;
+        let b1 = (mode_line.hscrol as u32 | ((mode_line.line_voffset as u32) << 8) | (width << 16))
+            as f32;
         let b2 = mode_line.video_memory_offset as f32;
         let b3 = mode_line.charset_memory_offset as f32;
 
-        self.custom.push([b0, b1, b2, b3]);
-        self.custom.push([b0, b1, b2, b3]);
-        self.custom.push([b0, b1, b2, b3]);
-        self.custom.push([b0, b1, b2, b3]);
+        inner.custom.push([b0, b1, b2, b3]);
+        inner.custom.push([b0, b1, b2, b3]);
+        inner.custom.push([b0, b1, b2, b3]);
+        inner.custom.push([b0, b1, b2, b3]);
 
-        self.indices.extend(
+        inner.indices.extend(
             [
                 index_offset + 0,
                 index_offset + 2,
