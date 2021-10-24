@@ -38,9 +38,7 @@ envsubst <<EOF > $HTML_FILE
         } else {
           showDebug("Error", "WEBGL2 not available")
         }
-
-        init();
-
+        init().catch(e => !e.toString().match("This isn't actually an error") && console.error(e));
       });
     </script>
     <div id="debug-info"></div>
