@@ -26,17 +26,6 @@ struct VertexOutput {
     [[location(2), interpolate(flat)]] custom: vec4<f32>;
 };
 
-[[stage(vertex)]]
-fn vertex(vertex: Vertex) -> VertexOutput {
-    let world_position = mesh.transform * vec4<f32>(vertex.position, 1.0);
-
-    var out: VertexOutput;
-    out.clip_position = view.view_proj * world_position;
-    out.uv = vertex.uv;
-    out.custom = vertex.custom;
-    return out;
-}
-
 struct GTIA1 {
     color_regs1: vec4<i32>;
     color_regs2: vec4<i32>;
@@ -121,6 +110,25 @@ fn get_memory(offset: i32) -> i32 {
     let h = offset >> 8u;
     let v: vec4<u32> = textureLoad(memory, vec2<i32>(w, h), 0);
     return i32(v.x & 0xffu);
+}
+
+fn cond_i32(pred: bool, a: i32, b: i32) -> i32 {
+    if(pred) {
+        return a;
+    } else {
+        return b;
+    }
+}
+
+[[stage(vertex)]]
+fn vertex(vertex: Vertex) -> VertexOutput {
+    let world_position = mesh.transform * vec4<f32>(vertex.position, 1.0);
+
+    var out: VertexOutput;
+    out.clip_position = view.view_proj * world_position;
+    out.uv = vertex.uv;
+    out.custom = vertex.custom;
+    return out;
 }
 
 [[stage(fragment)]]
@@ -371,5 +379,44 @@ fn fragment(
     if(hires && color_reg_index == 2) {
         color_reg = (color_reg & 0xf0) | (gtia1_regs.regs[scan_line].color_regs1[2] & 0xf);
     }
+
+    // TODO - do not check collisions on HBLANK
+
+    let p0 = bool(p[0]);
+    let p1 = bool(p[1]);
+    let p2 = bool(p[2]);
+    let p3 = bool(p[3]);
+
+    let pf_bits = cond_i32(pf0, 1, 0) | cond_i32(pf1, 2, 0) | cond_i32(pf2, 4, 0) | cond_i32(pf3, 8, 0);
+
+    let p0pf = cond_i32(p0, pf_bits, 0);
+    let p1pf = cond_i32(p1, pf_bits << 4u, 0);
+    let p2pf = cond_i32(p2, pf_bits << 8u, 0);
+    let p3pf = cond_i32(p3, pf_bits << 12u, 0);
+
+    let m0pf = cond_i32(m0, pf_bits, 0);
+    let m1pf = cond_i32(m1, pf_bits << 4u, 0);
+    let m2pf = cond_i32(m2, pf_bits << 8u, 0);
+    let m3pf = cond_i32(m3, pf_bits << 12u, 0);
+
+    let player_bits = i32(p0) | (i32(p1) << 1u) | (i32(p2) << 2u) | (i32(p3) << 3u);
+
+    let m0pl = cond_i32(m0, player_bits, 0);
+    let m1pl = cond_i32(m1, player_bits << 4u, 0);
+    let m2pl = cond_i32(m2, player_bits << 8u, 0);
+    let m3pl = cond_i32(m3, player_bits << 12u, 0);
+
+    let p0pl = cond_i32(p0, player_bits & ~1, 0);
+    let p1pl = cond_i32(p1, (player_bits & ~2) << 4u, 0);
+    let p2pl = cond_i32(p2, (player_bits & ~4) << 8u, 0);
+    let p3pl = cond_i32(p3, (player_bits & ~8) << 12u, 0);
+
+    let o_CollisionsTarget = vec4<u32>(
+        u32(m0pf | m1pf | m2pf | m3pf) | u32(p0pf | p1pf | p2pf | p3pf) << 16u,
+        u32(m0pl | m1pl | m2pl | m3pl) | u32(p0pl | p1pl | p2pl | p3pl) << 16u,
+        u32(0),
+        u32(0),
+    );
+
     return palette.palette[color_reg];
 }
