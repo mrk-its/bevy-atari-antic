@@ -1,4 +1,5 @@
 use bevy::{
+    app::AppExit,
     ecs::prelude::*,
     math::Vec3,
     prelude::{App, Assets, GlobalTransform, Handle, Transform},
@@ -27,20 +28,44 @@ fn main() {
             });
         }
     }
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        app.insert_resource(bevy::log::LogSettings {
+            level: bevy::utils::tracing::Level::INFO,
+            filter: "".to_string(),
+        });
+
+    }
+
     app.add_plugins(PipelinedDefaultPlugins)
         // .add_plugin(FrameTimeDiagnosticsPlugin::default())
         .add_plugin(AtariAnticPlugin)
         .add_startup_system(setup)
-        .add_system(update)
-        .run();
+        .add_system(update);
+
+    #[cfg(not(target_arch = "wasm32"))]
+    app.add_system(quit_after_few_frames);
+
+    app.run();
+}
+
+fn quit_after_few_frames(mut cnt: Local<u32>, mut app_exit_events: EventWriter<AppExit>) {
+    *cnt += 1;
+    if *cnt > 5 {
+        app_exit_events.send(AppExit);
+    }
 }
 
 fn update(mut atari_data_assets: ResMut<Assets<AnticData>>, query: Query<&Handle<AnticData>>) {
+    let span = bevy::utils::tracing::span!(bevy::utils::tracing::Level::INFO, "my_span");
+    let entered = span.enter();
     for handle in query.iter() {
         if let Some(atari_data) = atari_data_assets.get_mut(handle) {
             let mut inner = atari_data.inner.write();
-            inner.memory[1024] += 1;
-            inner.memory[1024 + 31] += 1;
+            let c = &mut inner.memory[1024];
+            *c = c.wrapping_add(1);
+            let c = &mut inner.memory[1024 + 31];
+            *c = c.wrapping_add(1);
         }
     }
 }
