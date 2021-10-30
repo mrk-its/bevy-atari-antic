@@ -43,8 +43,8 @@ pub struct GTIA1 {
 #[repr(C)]
 #[derive(Default, Clone, Copy, Debug)]
 pub struct GTIA2 {
-    pub player_size: [u32; 4], // 16
-    pub missile_size: [u32; 4], // 16
+    pub player_size: [f32; 4], // 16
+    pub missile_size: [f32; 4], // 16
     pub grafp: [u32; 4],
 }
 
@@ -52,7 +52,7 @@ pub struct GTIA2 {
 #[derive(Default, Clone, Copy, Debug)]
 pub struct GTIA3 {
     pub hposp: [f32; 4],     // 16
-    pub hposm: [u32; 4],     // 16
+    pub hposm: [f32; 4],     // 16
     pub prior: u32,
     pub sizem: u32,
     pub grafm: u32,

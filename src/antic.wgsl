@@ -38,13 +38,14 @@ fn vertex(vertex: Vertex) -> VertexOutput {
 }
 
 struct GTIA1 {
-    color_regs: array<vec4<i32>, 2>;
-    colpm: vec4<i32>;
+    color_regs1: vec4<i32>;
+    color_regs2: vec4<i32>;
+    color_pm: vec4<i32>;
 };
 
 struct GTIA2 {
-    player_size: vec4<i32>;
-    missile_size: vec4<i32>;
+    player_size: vec4<f32>;
+    missile_size: vec4<f32>;
     grafp: vec4<i32>;
 };
 
@@ -94,11 +95,15 @@ var<uniform> memory1: Memory;
 
 
 fn get_color_reg(scan_line: i32, k: i32) -> i32 {
-    return gtia1_regs.regs[0].color_regs[k >> 2u][k & 3];
+    if(k <= 3) {
+        return gtia1_regs.regs[scan_line].color_regs1[k & 3];
+    } else {
+        return gtia1_regs.regs[scan_line].color_regs2[k & 3];
+    }
 }
 
 fn get_gtia_colpm(scan_line: i32, k: i32) -> i32 {
-    return gtia1_regs.regs[scan_line].colpm[k];
+    return gtia1_regs.regs[scan_line].color_pm[k];
 }
 
 fn get_missile_pixels(px: vec4<f32>, scan_line: i32, hpos: vec4<f32>) -> vec4<f32> {
@@ -171,19 +176,20 @@ fn fragment(in: VertexOutput) -> [[location(0)]] vec4<f32> {
             let bit_offs = 4u - u32(frac * 2.0) * 4u; // nibble offset
             let value = (byte >> bit_offs) & 0xf;
             if(gtia_mode == 1) {
-                color_reg = value | get_color_reg(scan_line, 0) & 0xf0;
+                color_reg = value | gtia1_regs.regs[scan_line].color_regs1[0] & 0xf0;
             } elseif(gtia_mode == 3) {
                 color_reg = value << 4u;
                 if(color_reg > 0) {
-                    color_reg = color_reg | (get_color_reg(scan_line, 0) & 0xf);
+                    color_reg = color_reg | (gtia1_regs.regs[scan_line].color_regs1[0] & 0xf);
                 }
             } elseif(gtia_mode == 2) {
                 if(value < 4) {
                     color_reg_index = value + 1;
                 } elseif(value < 8) {
-                    color_reg = get_gtia_colpm(scan_line, value - 4);
+                    let idx = value - 4;
+                    color_reg = gtia1_regs.regs[scan_line].color_pm[idx];
                 } else {
-                    color_reg = get_color_reg(scan_line, 0);
+                    color_reg = gtia1_regs.regs[scan_line].color_regs1[0];
                 }
             };
         };
@@ -237,20 +243,18 @@ fn fragment(in: VertexOutput) -> [[location(0)]] vec4<f32> {
     let sf2 = pf2  &&  !(p23 && pri03)  &&  !(p01 && !pri2)  &&  !sf3;
     let sb = !p01  &&  !p23  &&  !pf01  &&  !pf23;
 
-    if(sp0) {color_reg = color_reg | get_gtia_colpm(scan_line, 0);};
-    if(sp1) {color_reg = color_reg | get_gtia_colpm(scan_line, 1);};
-    if(sp2) {color_reg = color_reg | get_gtia_colpm(scan_line, 2);};
-    if(sp3) {color_reg = color_reg | get_gtia_colpm(scan_line, 3);};
-    if(sf0) {color_reg = color_reg | get_color_reg(scan_line, 1);};
-    if(sf1) {color_reg = color_reg | get_color_reg(scan_line, 2);};
-    if(sf2) {color_reg = color_reg | get_color_reg(scan_line, 3);};
-    if(sf3) {color_reg = color_reg | get_color_reg(scan_line, 4);};
-    if(sb && gtia_mode == 0) {color_reg = color_reg | get_color_reg(scan_line, 0);};
-
-    // color_reg = get_color_reg(scan_line, color_reg_index);
+    if(sp0) {color_reg = color_reg | gtia1_regs.regs[scan_line].color_pm[0];};
+    if(sp1) {color_reg = color_reg | gtia1_regs.regs[scan_line].color_pm[1];};
+    if(sp2) {color_reg = color_reg | gtia1_regs.regs[scan_line].color_pm[2];};
+    if(sp3) {color_reg = color_reg | gtia1_regs.regs[scan_line].color_pm[3];};
+    if(sf0) {color_reg = color_reg | gtia1_regs.regs[scan_line].color_regs1[1];};
+    if(sf1) {color_reg = color_reg | gtia1_regs.regs[scan_line].color_regs1[2];};
+    if(sf2) {color_reg = color_reg | gtia1_regs.regs[scan_line].color_regs1[3];};
+    if(sf3) {color_reg = color_reg | gtia1_regs.regs[scan_line].color_regs2[4 & 3];};
+    if(sb && gtia_mode == 0) {color_reg = color_reg | gtia1_regs.regs[scan_line].color_regs1[0];};
 
     if(hires && color_reg_index == 2) {
-        color_reg = (color_reg & 0xf0) | (get_color_reg(scan_line, 2) & 0xf);
+        color_reg = (color_reg & 0xf0) | (gtia1_regs.regs[scan_line].color_regs1[2] & 0xf);
     }
     // var out_color = vec4<f32>(0.0, 1.0, 0.0, 1.0);
     // if(color_reg_index == 3) {
