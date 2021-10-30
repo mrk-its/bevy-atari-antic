@@ -1,12 +1,4 @@
-use bevy::{
-    app::AppExit,
-    ecs::prelude::*,
-    math::Vec3,
-    prelude::{App, Assets, GlobalTransform, Handle, Transform},
-    render2::camera::OrthographicCameraBundle,
-    window::WindowDescriptor,
-    PipelinedDefaultPlugins,
-};
+use bevy::{PipelinedDefaultPlugins, app::AppExit, ecs::prelude::*, math::Vec3, prelude::{App, Assets, GlobalTransform, Handle, Transform}, render2::{camera::OrthographicCameraBundle, view::Msaa}, window::WindowDescriptor};
 use bevy_atari_antic::atari_data::AnticData;
 use bevy_atari_antic::{AtariAnticPlugin, ModeLineDescr};
 
@@ -17,6 +9,9 @@ fn main() {
         height: 480.0,
         scale_factor_override: Some(1.0),
         ..Default::default()
+    });
+    app.insert_resource(Msaa {
+        samples: 1,
     });
     #[cfg(target_arch = "wasm32")]
     {
