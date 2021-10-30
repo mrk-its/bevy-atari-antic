@@ -8,7 +8,7 @@ envsubst <<EOF > $HTML_FILE
 <html>
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
   </head>
   <body>
     <script type="module">
@@ -17,9 +17,9 @@ envsubst <<EOF > $HTML_FILE
       function showDebug(header, text) {
         console.log(header, text);
         let cont = document.getElementById("debug-info");
-        let div = document.createElement("div");
-        div.innerHTML = header + ': ' + text;
-        cont.appendChild(div);
+        let p = document.createElement("p");
+        p.innerHTML = '<b>' + header + '</b>: ' + text;
+        cont.appendChild(p);
       }
 
       window.addEventListener("load", () => {
