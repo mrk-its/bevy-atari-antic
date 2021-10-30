@@ -167,6 +167,18 @@ fn fragment(
     let gtia_mode = prior >> 6u;
     var color_reg = 0;
 
+    // var ccc: vec4<f32>;
+
+    // let bit = 31u - u32(uv[0] * 32.0);
+    // let grid = u32(uv[0] * 256.0);
+    // if((grid & 0x7u) == 0u) {
+    //     ccc = vec4<f32>(0.0, 1.0, 0.0, 1.0);
+    // } elseif(((prior >> bit) & 1) > 0) {
+    //     ccc = vec4<f32>(1.0, 0.0, 0.0, 1.0);
+    // } else {
+    //     ccc = vec4<f32>(0.0, 0.0, 0.0, 1.0);
+    // }
+
     if(mode == 0x0 || px < 0.0 || px >= line_width) {
 
     } elseif(mode == 2) {
