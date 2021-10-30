@@ -106,12 +106,10 @@ fn get_gtia_colpm(scan_line: i32, k: i32) -> i32 {
     return gtia1_regs.regs[scan_line].color_pm[k];
 }
 
-fn get_missile_pixels(px: vec4<f32>, scan_line: i32, hpos: vec4<f32>) -> vec4<f32> {
-    return vec4<f32>(0.0);
-}
-
-fn get_player_pixels(px: vec4<f32>, scan_line: i32, hpos: vec4<f32>) -> vec4<f32> {
-    return vec4<f32>(0.0);
+fn get_pm_pixels(px: vec4<f32>, w: f32, scan_line: i32, msize: vec4<f32>, hpos: vec4<f32>, data: vec4<i32>) -> vec4<f32> {
+    let cond = vec4<f32>(px >= hpos) * vec4<f32>(px < hpos + msize);
+    let bit = vec4<u32>(mix(vec4<f32>(w - 0.001), vec4<f32>(0.0), (px - hpos) / msize));
+    return mix(vec4<f32>(0.0), vec4<f32>(((data >> bit) & vec4<i32>(1)) > vec4<i32>(0)), cond);
 }
 
 fn get_memory(offset: i32) -> i32 {
@@ -161,7 +159,7 @@ fn fragment(
     let scan_line = start_scan_line + cy;
 
     let hpos_offs = vec4<f32>(line_width / 2.0 - 256.0);
-    let hposp = vec4<f32>(gtia3_regs.regs[scan_line].hposp);
+    let hposp = vec4<f32>(gtia3_regs.regs[scan_line].hposp) * 2.0 + hpos_offs;
     let hposm = vec4<f32>(gtia3_regs.regs[scan_line].hposm) * 2.0 + hpos_offs;
 
     var color_reg_index = 0; // bg_color
@@ -219,7 +217,12 @@ fn fragment(
     let pri03 = pri0 || pri3;
 
     let vpx = vec4<f32>(px);
-    let m = get_missile_pixels(vpx, scan_line, hposm);
+
+    let missile_shift = vec4<u32>(0u, 2u, 4u, 6u);
+    let mdata = vec4<i32>(gtia3_regs.regs[scan_line].prior[2]) >> missile_shift;
+    let msize = gtia2_regs.regs[scan_line].missile_size;
+    let m = get_pm_pixels(vpx, 2.0, scan_line, msize, hposm, mdata);
+
     let m0 = m[0] > 0.0;
     let m1 = m[1] > 0.0;
     let m2 = m[2] > 0.0;
@@ -227,7 +230,10 @@ fn fragment(
 
     let p5 = (prior & 0x10) > 0;
 
-    let p = get_player_pixels(vpx, scan_line, hposp);
+    let psize = gtia2_regs.regs[scan_line].player_size;
+    let data= gtia2_regs.regs[scan_line].grafp;
+
+    let p = get_pm_pixels(vpx, 8.0, scan_line, psize, hposp, data);
 
     let p_ = vec4<bool>(p + f32(!p5) * m);
     let p0 = p_[0];
