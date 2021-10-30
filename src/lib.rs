@@ -76,9 +76,8 @@ impl RenderAsset for AtariData {
 
         // let sampler = render_device.create_sampler(&sampler_descriptor);
         let memory_data = unsafe {
-            std::slice::from_raw_parts(extracted_asset.memory.as_ptr(), 16384)
+            std::slice::from_raw_parts(extracted_asset.memory.as_ptr(), AtariData::MEMORY_UNIFORM_SIZE)
         };
-        // let memory_data = &[0u8; 16384];
         let memory1_buffer = render_device.create_buffer_with_data(&BufferInitDescriptor {
             contents: memory_data,
             label: None,
@@ -265,7 +264,7 @@ impl FromWorld for CustomPipeline {
                         ty: BindingType::Buffer {
                             ty: BufferBindingType::Uniform,
                             has_dynamic_offset: false,
-                            min_binding_size: BufferSize::new(16384 as u64),
+                            min_binding_size: BufferSize::new(AtariData::MEMORY_UNIFORM_SIZE as u64),
                         },
                         count: None,
                     },

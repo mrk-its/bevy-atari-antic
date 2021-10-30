@@ -76,7 +76,7 @@ struct Palette {
 };
 [[block]]
 struct Memory {
-    memory: array<vec4<u32>, 1024>;
+    memory: array<vec4<u32>, 128>;  // 1024
 };
 [[group(1), binding(0)]]
 var<uniform> gtia1_regs: GTIA1Regs;

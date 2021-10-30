@@ -24,7 +24,7 @@ impl Default for AtariData {
         // max 30 lines of text mode and 240 lines x 48 bytes / line
         // let texture_data = Vec::with_capacity(30 * 1024 + 240 * 48);
         Self {
-            memory: Vec::with_capacity(16384),
+            memory: Vec::with_capacity(AtariData::MEMORY_UNIFORM_SIZE),
             palette: AtariPalette::default(),
             gtia1: GTIA1Regs::default(),
             gtia2: GTIA2Regs::default(),
@@ -38,8 +38,9 @@ impl Default for AtariData {
 }
 
 impl AtariData {
+    pub const MEMORY_UNIFORM_SIZE: usize = 2048;
     pub fn reserve_antic_memory(&mut self, len: usize) -> &mut [u8] {
-        assert!(self.memory.capacity() == 16384);
+        assert!(self.memory.capacity() == Self::MEMORY_UNIFORM_SIZE);
         let dst_offset = self.memory.len();
         assert!(dst_offset + len <= self.memory.capacity());
         unsafe {
