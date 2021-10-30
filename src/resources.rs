@@ -34,7 +34,7 @@ unsafe impl Std140 for AtariPalette {
 
 
 #[repr(C)]
-#[derive(Default, Clone, Pod, Zeroable, Copy, Debug)]
+#[derive(Default, Clone, Copy, Debug)]
 pub struct GTIA1 {
     pub colors: [u32; 8],    // 32
     pub colors_pm: [u32; 4], // 16
