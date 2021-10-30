@@ -16,14 +16,14 @@ var<uniform> mesh: Mesh;
 
 struct Vertex {
     [[location(0)]] position: vec3<f32>;
-    [[location(1),interpolate(flat)]] custom: vec4<f32>;
-    [[location(2)]] uv: vec2<f32>;
+    [[location(1)]] uv: vec2<f32>;
+    [[location(2), interpolate(flat)]] custom: vec4<f32>;
 };
 
 struct VertexOutput {
     [[builtin(position)]] clip_position: vec4<f32>;
-    [[location(1),interpolate(flat)]] custom: vec4<f32>;
-    [[location(2)]] uv: vec2<f32>;
+    [[location(1)]] uv: vec2<f32>;
+    [[location(2), interpolate(flat)]] custom: vec4<f32>;
 };
 
 [[stage(vertex)]]

@@ -316,19 +316,19 @@ impl FromWorld for CustomPipeline {
                         // Position (GOTCHA! Vertex_Position isn't first in the buffer due to how Mesh sorts attributes (alphabetically))
                         VertexAttribute {
                             format: VertexFormat::Float32x3,
-                            offset: 16,
-                            shader_location: 0,
-                        },
-                        // Custom
-                        VertexAttribute {
-                            format: VertexFormat::Float32x4,
                             offset: 0,
-                            shader_location: 1,
+                            shader_location: 0,
                         },
                         // Uv
                         VertexAttribute {
                             format: VertexFormat::Float32x2,
-                            offset: 28,
+                            offset: 12,
+                            shader_location: 1,
+                        },
+                        // RCustom
+                        VertexAttribute {
+                            format: VertexFormat::Float32x4,
+                            offset: 20,
                             shader_location: 2,
                         },
                     ],

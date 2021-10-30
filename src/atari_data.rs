@@ -16,7 +16,7 @@ pub struct AtariData {
     pub positions: Vec<[f32; 3]>,
     pub custom: Vec<[f32; 4]>,
     pub uvs: Vec<[f32; 2]>,
-    pub indices: Vec<u32>,
+    pub indices: Vec<u16>,
 }
 
 impl Default for AtariData {
@@ -58,9 +58,9 @@ impl AtariData {
     pub fn create_mesh(&self) -> Mesh {
         let mut mesh = Mesh::new(PrimitiveTopology::TriangleList);
         mesh.set_attribute(Mesh::ATTRIBUTE_POSITION, self.positions.clone());
-        mesh.set_attribute("Vertex_Custom", self.custom.clone());
         mesh.set_attribute(Mesh::ATTRIBUTE_UV_0, self.uvs.clone());
-        mesh.set_indices(Some(Indices::U32(self.indices.clone())));
+        mesh.set_attribute("Vertex_ZCustom", self.custom.clone());
+        mesh.set_indices(Some(Indices::U16(self.indices.clone())));
         mesh
     }
 
@@ -75,7 +75,7 @@ impl AtariData {
         video_memory_offset: usize,
         charset_memory_offset: usize,
     ) {
-        let index_offset = self.positions.len() as u32;
+        let index_offset = self.positions.len() as u16;
 
         let scan_line_y = scan_line as f32 - 8.0;
 
