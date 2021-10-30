@@ -120,27 +120,41 @@ fn get_memory(offset: i32) -> i32 {
 }
 
 [[stage(fragment)]]
-fn fragment(in: VertexOutput) -> [[location(0)]] vec4<f32> {
+fn fragment(
+    [[location(1)]] uv: vec2<f32>,
+    [[location(2), interpolate(flat)]] custom: vec4<f32>
+) -> [[location(0)]] vec4<f32> {
+    let c0 = u32(custom[0]);
+    let c1 = u32(custom[1]);
 
-    let c0 = i32(in.custom[0]);
-    let c1 = i32(in.custom[1]);
+    let mode = i32(c0 & 0xffu);
+    let start_scan_line = i32((c0 >> 8u) & 0xffu);
+    let line_height = i32((c0 >> 16u) & 0xffu);
 
-    let mode = c0 & 0xff;
-    let start_scan_line = (c0 >> 8u) & 0xff;
-    let line_height = (c0 >> 16u) & 0xff;
+    let hscrol = i32(c1 & 0xffu);
+    let line_voffset = i32((c1 >> 8u) & 0xffu);
+    let line_width = f32((c1 >> 16u) & 0xffu) * 2.0;
 
-    let hscrol = c1 & 0xff;
-    let line_voffset = (c1 >> 8u) & 0xff;
-    let line_width = f32((c1 >> 16u) & 0xff) * 2.0;
 
-    let video_memory_offset = i32(in.custom[2]);
-    let charset_memory_offset = i32(in.custom[3]);
+    let video_memory_offset = i32(custom[2]);
+    let charset_memory_offset = i32(custom[3]);
 
-    let x = in.uv[0] * 384.0;
+    // let video_memory_offset = 0;
+    // let charset_memory_offset = 0;
+
+    // let mode = 2;
+    // let start_scan_line = 0;
+    // let line_height = 0;
+
+
+    // let line_width = 320.0;
+
+
+    let x = uv[0] * 384.0;
     let px = x - 192.0 + line_width / 2.0;
 
     let px_scrolled = px + f32(hscrol);  // pixel x position
-    let cy = i32(in.uv[1] * f32(line_height) * 0.99);
+    let cy = i32(uv[1] * f32(line_height) * 0.99);
     let y = cy + line_voffset;
     var hires = false;
 
