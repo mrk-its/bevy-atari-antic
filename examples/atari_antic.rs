@@ -8,6 +8,7 @@ use bevy::{
         camera::PerspectiveCameraBundle,
         mesh::{shape, Mesh},
     },
+    window::WindowDescriptor,
     PipelinedDefaultPlugins,
 };
 use bevy_atari_antic::atari_data::AtariData;
@@ -18,6 +19,12 @@ pub const ANTIC_MESH_HANDLE: HandleUntyped =
 
 fn main() {
     App::new()
+        .insert_resource(WindowDescriptor {
+            width: 768.0,
+            height: 480.0,
+            scale_factor_override: Some(1.0),
+            ..Default::default()
+        })
         .add_plugins(PipelinedDefaultPlugins)
         .add_plugin(FrameTimeDiagnosticsPlugin::default())
         .add_plugin(LogDiagnosticsPlugin::default())
