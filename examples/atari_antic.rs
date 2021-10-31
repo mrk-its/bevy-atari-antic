@@ -62,9 +62,9 @@ fn update(mut atari_data_assets: ResMut<Assets<AnticData>>, query: Query<&Handle
     for handle in query.iter() {
         if let Some(atari_data) = atari_data_assets.get_mut(handle) {
             let mut inner = atari_data.inner.write();
-            let c = &mut inner.memory[1024];
+            let c = &mut inner.memory[32 * 240 + 1024];
             *c = c.wrapping_add(1);
-            let c = &mut inner.memory[1024 + 31];
+            let c = &mut inner.memory[32 * 240 + 1024 + 31];
             *c = c.wrapping_add(1);
         }
     }
