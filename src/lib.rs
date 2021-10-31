@@ -10,7 +10,7 @@ use bevy::{
         prelude::*,
         system::{lifetimeless::*, SystemParamItem},
     },
-    prelude::{AddAsset, Assets, App, Handle, Plugin},
+    prelude::{AddAsset, App, Assets, Handle, Plugin},
     render2::{
         mesh,
         render_asset::{PrepareAssetError, RenderAsset, RenderAssetPlugin, RenderAssets},
@@ -68,7 +68,7 @@ impl Plugin for AtariAnticPlugin {
     }
 }
 
-    #[derive(Clone)]
+#[derive(Clone)]
 pub struct GpuAnticDataInner {
     palette_buffer: Buffer,
     buffer1: Buffer,
@@ -399,7 +399,6 @@ impl SpecializedPipeline for AnticPipeline {
     type Key = AnticPipelineKey;
 
     fn specialize(&self, _key: Self::Key) -> RenderPipelineDescriptor {
-
         RenderPipelineDescriptor {
             label: None,
             vertex: VertexState {
@@ -485,9 +484,7 @@ impl SpecializedPipeline for AnticPipeline {
             },
         }
     }
-
 }
-
 
 #[derive(AsStd140, Clone)]
 pub struct TransformUniform {
@@ -502,10 +499,7 @@ pub fn extract_meshes(
     let mut values = Vec::with_capacity(*previous_len);
     for (entity, transform) in query.iter() {
         let transform = transform.compute_matrix();
-        values.push((
-            entity,
-            (TransformUniform { transform }, ),
-        ));
+        values.push((entity, (TransformUniform { transform },)));
     }
     *previous_len = values.len();
     commands.insert_or_spawn_batch(values);
@@ -546,7 +540,8 @@ pub fn queue_meshes(
     pipeline: Res<AnticPipeline>,
     antic_pipeline: Res<AnticPipeline>,
     mut pipelines: ResMut<SpecializedPipelines<AnticPipeline>>,
-    mut pipeline_cache: ResMut<RenderPipelineCache>,    view_uniforms: Res<ViewUniforms>,
+    mut pipeline_cache: ResMut<RenderPipelineCache>,
+    view_uniforms: Res<ViewUniforms>,
     standard_material_meshes: Query<(Entity, &TransformUniform), With<Handle<AnticData>>>,
     mut views: Query<(Entity, &ExtractedView, &mut RenderPhase<Transparent3d>)>,
 ) {
