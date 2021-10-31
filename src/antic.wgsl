@@ -49,8 +49,14 @@ struct MemBlock {
     data: array<vec4<u32>, 4>;
 };
 
+let memory_offset: i32 = 7680; // 240 * 32;
+
 let memory_uniform_size: i32 = 16384;
 let memory_uniform_size_blocks: i32 = 128;
+
+let COLPM0: i32 = 0x12;
+let COLPF0: i32 = 0x16;
+let COLBK: i32 = 0x1A;
 
 [[block]]
 struct GTIA1Regs {
@@ -73,30 +79,28 @@ struct Palette {
 };
 
 [[group(1), binding(0)]]
-var<uniform> gtia1_regs: GTIA1Regs;
-
-[[group(1), binding(1)]]
-var<uniform> gtia2_regs: GTIA2Regs;
-
-[[group(1), binding(2)]]
-var<uniform> gtia3_regs: GTIA3Regs;
-
-[[group(1), binding(3)]]
 var<uniform> palette: Palette;
 
-[[group(1), binding(4)]]
+[[group(1), binding(1)]]
 var memory: texture_2d<u32>;
 
-fn get_color_reg(scan_line: i32, k: i32) -> i32 {
-    if(k <= 3) {
-        return gtia1_regs.regs[scan_line].color_regs1[k & 3];
-    } else {
-        return gtia1_regs.regs[scan_line].color_regs2[k & 3];
-    }
+fn get_gtia_reg(scan_line: i32, k: i32) -> i32 {
+    let offset = scan_line * 32 + k;
+    let w = offset & 0xff;
+    let h = offset >> 8u;
+    let v: vec4<u32> = textureLoad(memory, vec2<i32>(w, h), 0);
+    return i32(v.x & 0xffu);
 }
 
-fn get_gtia_colpm(scan_line: i32, k: i32) -> i32 {
-    return gtia1_regs.regs[scan_line].color_pm[k];
+fn get_gtia_reg4(scan_line: i32, k: i32) -> vec4<i32> {
+    let offset = scan_line * 32 + k;
+    let w = offset & 0xff;
+    let h = offset >> 8u;
+    let v1: vec4<u32> = textureLoad(memory, vec2<i32>(w, h), 0);
+    let v2: vec4<u32> = textureLoad(memory, vec2<i32>(w+1, h), 0);
+    let v3: vec4<u32> = textureLoad(memory, vec2<i32>(w+2, h), 0);
+    let v4: vec4<u32> = textureLoad(memory, vec2<i32>(w+3, h), 0);
+    return vec4<i32>(i32(v1.x), i32(v2.x), i32(v3.x), i32(v4.x));
 }
 
 fn get_pm_pixels(px: vec4<f32>, w: f32, scan_line: i32, msize: vec4<f32>, hpos: vec4<f32>, data: vec4<i32>) -> vec4<f32> {
@@ -106,8 +110,8 @@ fn get_pm_pixels(px: vec4<f32>, w: f32, scan_line: i32, msize: vec4<f32>, hpos: 
 }
 
 fn get_memory(offset: i32) -> i32 {
-    let w = offset & 0xff;
-    let h = offset >> 8u;
+    let w = (offset + memory_offset) & 0xff;
+    let h = (offset + memory_offset) >> 8u;
     let v: vec4<u32> = textureLoad(memory, vec2<i32>(w, h), 0);
     return i32(v.x & 0xffu);
 }
@@ -160,11 +164,11 @@ fn fragment(
     let scan_line = start_scan_line + cy;
 
     let hpos_offs = vec4<f32>(line_width / 2.0 - 256.0);
-    let hposp = vec4<f32>(gtia3_regs.regs[scan_line].hposp) * 2.0 + hpos_offs;
-    let hposm = vec4<f32>(gtia3_regs.regs[scan_line].hposm) * 2.0 + hpos_offs;
+    let hposp = vec4<f32>(get_gtia_reg4(scan_line, 0x00)) * 2.0 + hpos_offs;
+    let hposm = vec4<f32>(get_gtia_reg4(scan_line, 0x04)) * 2.0 + hpos_offs;
 
     var color_reg_index = 0; // bg_color
-    let prior = gtia3_regs.regs[scan_line].prior[0];
+    let prior = get_gtia_reg(scan_line, 0x1b);
     let gtia_mode = prior >> 6u;
     var color_reg = 0;
 
@@ -179,6 +183,8 @@ fn fragment(
     // } else {
     //     ccc = vec4<f32>(0.0, 0.0, 0.0, 1.0);
     // }
+
+    let colbk = get_gtia_reg(scan_line, COLBK);
 
     if(mode == 0x0 || px < 0.0 || px >= line_width) {
 
@@ -201,20 +207,20 @@ fn fragment(
             let bit_offs = 4u - u32(frac * 2.0) * 4u; // nibble offset
             let value = (byte >> bit_offs) & 0xf;
             if(gtia_mode == 1) {
-                color_reg = value | gtia1_regs.regs[scan_line].color_regs1[0] & 0xf0;
+                color_reg = value | colbk & 0xf0;
             } elseif(gtia_mode == 3) {
                 color_reg = value << 4u;
                 if(color_reg > 0) {
-                    color_reg = color_reg | (gtia1_regs.regs[scan_line].color_regs1[0] & 0xf);
+                    color_reg = color_reg | (colbk & 0xf);
                 }
             } elseif(gtia_mode == 2) {
                 if(value < 4) {
                     color_reg_index = value + 1;
                 } elseif(value < 8) {
                     let idx = value - 4;
-                    color_reg = gtia1_regs.regs[scan_line].color_pm[idx];
+                    color_reg = get_gtia_reg(scan_line, COLPM0 + idx);
                 } else {
-                    color_reg = gtia1_regs.regs[scan_line].color_regs1[0];
+                    color_reg = colbk;
                 }
             };
         };
@@ -290,19 +296,19 @@ fn fragment(
             let bit_offs = 4u - u32(frac * 2.0) * 4u; // nibble offset
             let value = (byte >> bit_offs) & 0xf;
             if(gtia_mode == 1) {
-                color_reg = value | gtia1_regs.regs[scan_line].color_regs1[0] & 0xf0;
+                color_reg = value | colbk & 0xf0;
             } elseif(gtia_mode == 3) {
                 color_reg = value << 4u;
                 if(color_reg > 0) {
-                    color_reg = color_reg | gtia1_regs.regs[scan_line].color_regs1[0] & 0xf;
+                    color_reg = color_reg | colbk & 0xf;
                 };
             } elseif(gtia_mode == 2) {
                 if(value < 4) {
                     color_reg_index = value + 1;
                 } elseif(value < 8) {
-                    color_reg = gtia1_regs.regs[scan_line].color_pm[value - 4];
+                    color_reg = get_gtia_reg(scan_line, COLPM0 + value - 4);
                 } else {
-                    color_reg = gtia1_regs.regs[scan_line].color_regs1[0];
+                    color_reg = colbk;
                 }
             };
         };
@@ -322,8 +328,11 @@ fn fragment(
     let vpx = vec4<f32>(px);
 
     let missile_shift = vec4<u32>(0u, 2u, 4u, 6u);
-    let mdata = vec4<i32>(gtia3_regs.regs[scan_line].prior[2]) >> missile_shift;
-    let msize = gtia2_regs.regs[scan_line].missile_size;
+    let mdata = vec4<i32>(get_gtia_reg(scan_line, 0x11)) >> missile_shift;
+
+    let msize = (vec4<u32>(u32(get_gtia_reg(scan_line, 0x0c))) >> missile_shift) & vec4<u32>(0x3u);
+    let msize = vec4<f32>(vec4<i32>(4) << msize);
+
     let m = get_pm_pixels(vpx, 2.0, scan_line, msize, hposm, mdata);
 
     let m0 = m[0] > 0.0;
@@ -333,8 +342,9 @@ fn fragment(
 
     let p5 = (prior & 0x10) > 0;
 
-    let psize = gtia2_regs.regs[scan_line].player_size;
-    let data= gtia2_regs.regs[scan_line].grafp;
+    let psize = vec4<u32>(u32(get_gtia_reg(scan_line, 0x08))) & vec4<u32>(0x3u);
+    let psize = vec4<f32>(vec4<i32>(16) << psize);
+    let data = get_gtia_reg4(scan_line, 0x0d);
 
     let p = get_pm_pixels(vpx, 8.0, scan_line, psize, hposp, data);
 
@@ -366,18 +376,18 @@ fn fragment(
     let sf2 = pf2  &&  !(p23 && pri03)  &&  !(p01 && !pri2)  &&  !sf3;
     let sb = !p01  &&  !p23  &&  !pf01  &&  !pf23;
 
-    if(sp0) {color_reg = color_reg | gtia1_regs.regs[scan_line].color_pm[0];};
-    if(sp1) {color_reg = color_reg | gtia1_regs.regs[scan_line].color_pm[1];};
-    if(sp2) {color_reg = color_reg | gtia1_regs.regs[scan_line].color_pm[2];};
-    if(sp3) {color_reg = color_reg | gtia1_regs.regs[scan_line].color_pm[3];};
-    if(sf0) {color_reg = color_reg | gtia1_regs.regs[scan_line].color_regs1[1];};
-    if(sf1) {color_reg = color_reg | gtia1_regs.regs[scan_line].color_regs1[2];};
-    if(sf2) {color_reg = color_reg | gtia1_regs.regs[scan_line].color_regs1[3];};
-    if(sf3) {color_reg = color_reg | gtia1_regs.regs[scan_line].color_regs2[4 & 3];};
-    if(sb && gtia_mode == 0) {color_reg = color_reg | gtia1_regs.regs[scan_line].color_regs1[0];};
+    if(sp0) {color_reg = color_reg | get_gtia_reg(scan_line, COLPM0 + 0);};
+    if(sp1) {color_reg = color_reg | get_gtia_reg(scan_line, COLPM0 + 1);};
+    if(sp2) {color_reg = color_reg | get_gtia_reg(scan_line, COLPM0 + 2);};
+    if(sp3) {color_reg = color_reg | get_gtia_reg(scan_line, COLPM0 + 3);};
+    if(sf0) {color_reg = color_reg | get_gtia_reg(scan_line, COLPF0 + 0);};
+    if(sf1) {color_reg = color_reg | get_gtia_reg(scan_line, COLPF0 + 1);};
+    if(sf2) {color_reg = color_reg | get_gtia_reg(scan_line, COLPF0 + 2);};
+    if(sf3) {color_reg = color_reg | get_gtia_reg(scan_line, COLPF0 + 3);};
+    if(sb && gtia_mode == 0) {color_reg = color_reg | colbk;};
 
     if(hires && color_reg_index == 2) {
-        color_reg = (color_reg & 0xf0) | (gtia1_regs.regs[scan_line].color_regs1[2] & 0xf);
+        color_reg = (color_reg & 0xf0) | (get_gtia_reg(scan_line, COLPF0 + 1) & 0xf);
     }
 
     // TODO - do not check collisions on HBLANK
@@ -418,5 +428,6 @@ fn fragment(
         u32(0),
     );
 
+    // return palette.palette[get_gtia_reg(scan_line, 0x12 + 6)];
     return palette.palette[color_reg];
 }

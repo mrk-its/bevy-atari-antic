@@ -6,7 +6,7 @@ use bevy::render2::mesh::{Indices, Mesh};
 use parking_lot::RwLock;
 use wgpu::PrimitiveTopology;
 
-use super::resources::{AtariPalette, GTIA1Regs, GTIA2Regs, GTIA3Regs};
+use super::resources::AtariPalette;
 
 use crate::AnticMesh;
 
@@ -17,9 +17,6 @@ pub struct AnticDataInner {
     pub memory: Vec<u8>,
     pub memory_used: usize,
     pub palette: AtariPalette,
-    pub gtia1: GTIA1Regs,
-    pub gtia2: GTIA2Regs,
-    pub gtia3: GTIA3Regs,
     pub positions: Vec<[f32; 3]>,
     pub custom: Vec<[f32; 4]>,
     pub uvs: Vec<[f32; 2]>,
@@ -32,20 +29,19 @@ pub struct AnticData {
     pub inner: Arc<RwLock<AnticDataInner>>,
 }
 
+const GTIA_REGS_MEMORY: usize = 240 * 32;
+
 impl Default for AnticData {
     fn default() -> Self {
         // max 30 lines of text mode and 240 lines x 48 bytes / line
         // let texture_data = Vec::with_capacity(30 * 1024 + 240 * 48);
-        let mut memory = Vec::with_capacity(256 * 11 * 4 * 4);
+        let mut memory = Vec::with_capacity(GTIA_REGS_MEMORY + 256 * 11 * 4 * 4);
         memory.resize(memory.capacity(), 0);
         Self {
             inner: Arc::new(RwLock::new(AnticDataInner {
                 memory,
                 memory_used: 0,
                 palette: AtariPalette::default(),
-                gtia1: GTIA1Regs::default(),
-                gtia2: GTIA2Regs::default(),
-                gtia3: GTIA3Regs::default(),
                 positions: Default::default(),
                 custom: Default::default(),
                 uvs: Default::default(),
@@ -57,32 +53,21 @@ impl Default for AnticData {
 
 impl AnticData {
     pub fn set_gtia_regs(&mut self, scan_line: usize, regs: &crate::GTIARegs) {
+        assert!(std::mem::size_of::<crate::GTIARegs>() == 32);
         let mut inner = self.inner.write();
-        let mut gtia1 = &mut inner.gtia1.0[scan_line];
-        gtia1.colors = regs.colors;
-        gtia1.colors_pm = regs.colors_pm;
-
-        let mut gtia2 = &mut inner.gtia2.0[scan_line];
-        gtia2.grafp = regs.grafp;
-        gtia2.missile_size = regs.missile_size;
-        gtia2.player_size = regs.player_size;
-
-        let mut gtia3 = &mut inner.gtia3.0[scan_line];
-        gtia3.grafm = regs.grafm;
-        gtia3.hposm = regs.hposm;
-        gtia3.hposp = regs.hposp;
-        gtia3.prior = regs.prior;
-        gtia3.sizem = regs.sizem;
+        let ptr = inner.memory.as_mut_ptr() as *mut crate::GTIARegs;
+        unsafe { *ptr.offset(scan_line as isize) = *regs }
     }
+
     pub fn reserve_antic_memory(&mut self, len: usize, cb: &mut dyn FnMut(&mut [u8])) -> usize {
         let mut inner = self.inner.write();
-        let dst_offset = inner.memory_used;
+        let dst_offset = GTIA_REGS_MEMORY + inner.memory_used;
         assert!(dst_offset + len <= inner.memory.len());
         inner.memory_used += len;
 
         cb(&mut inner.memory[dst_offset..dst_offset + len]);
         // bevy::utils::tracing::info!("antic memory offs: {}, len: {}", dst_offset, len);
-        dst_offset
+        dst_offset - GTIA_REGS_MEMORY
     }
 
     pub fn clear(&mut self) {

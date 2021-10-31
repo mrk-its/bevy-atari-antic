@@ -7,7 +7,7 @@ use bevy::{
     window::WindowDescriptor,
     PipelinedDefaultPlugins,
 };
-use bevy_atari_antic::atari_data::AnticData;
+use bevy_atari_antic::{atari_data::AnticData, GTIARegs};
 use bevy_atari_antic::{AtariAnticPlugin, ModeLineDescr};
 
 fn main() {
@@ -197,45 +197,24 @@ fn setup(mut commands: Commands, mut atari_data_assets: ResMut<Assets<AnticData>
             0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
         ])
     });
-
-    {
-        let mut atari_data = atari_data.inner.write();
-
-        for scan_line in 0..240 {
-            atari_data.gtia1.0[scan_line].colors[0] = 0;
-            atari_data.gtia1.0[scan_line].colors[1] = 40;
-            atari_data.gtia1.0[scan_line].colors[2] = 202;
-            atari_data.gtia1.0[scan_line].colors[3] = 148;
-            atari_data.gtia1.0[scan_line].colors[4] = 70;
-            atari_data.gtia1.0[scan_line].colors[5] = 0;
-            atari_data.gtia1.0[scan_line].colors[6] = 0;
-            atari_data.gtia1.0[scan_line].colors[7] = 0;
-
-            atari_data.gtia1.0[scan_line].colors_pm[0] = 0x2a;
-            atari_data.gtia1.0[scan_line].colors_pm[1] = 0x4a;
-            atari_data.gtia1.0[scan_line].colors_pm[2] = 0x6a;
-            atari_data.gtia1.0[scan_line].colors_pm[3] = 0x8a;
-
-            atari_data.gtia3.0[scan_line].hposp[0] = 64.0 - 4.0;
-            atari_data.gtia3.0[scan_line].hposp[1] = 96.0 - 4.0;
-            atari_data.gtia3.0[scan_line].hposp[2] = 128.0 - 4.0;
-            atari_data.gtia3.0[scan_line].hposp[3] = 160.0 - 4.0;
-            atari_data.gtia3.0[scan_line].hposm =
-                [192.0 - 4.0, 194.0 - 4.0, 196.0 - 4.0, 198.0 - 4.0];
-            atari_data.gtia3.0[scan_line].grafm = 0x55;
-            atari_data.gtia3.0[scan_line].prior = 4;
-
-            atari_data.gtia2.0[scan_line].player_size[0] = 16.0;
-            atari_data.gtia2.0[scan_line].player_size[1] = 16.0;
-            atari_data.gtia2.0[scan_line].player_size[2] = 16.0;
-            atari_data.gtia2.0[scan_line].player_size[3] = 16.0;
-            atari_data.gtia2.0[scan_line].missile_size = [4.0, 4.0, 4.0, 4.0];
-
-            atari_data.gtia2.0[scan_line].grafp[0] = 0x55;
-            atari_data.gtia2.0[scan_line].grafp[1] = 0x55;
-            atari_data.gtia2.0[scan_line].grafp[2] = 0x55;
-            atari_data.gtia2.0[scan_line].grafp[3] = 0x55;
-        }
+    for scan_line in 0..240 {
+        atari_data.set_gtia_regs(
+            scan_line,
+            &GTIARegs {
+                hposp: [64 - 4, 96 - 4, 128 - 4, 160 - 4],
+                hposm: [192 - 4, 194 - 4, 196 - 4, 198 - 4],
+                sizep: [16, 16, 16, 16],
+                sizem: 0,
+                grafp: [0x55, 0x55, 0x55, 0x55],
+                grafm: 0x55,
+                col: [0x2a, 0x4a, 0x6a, 0x8a, 40, 202, 148, 70, 0],
+                prior: 4,
+                vdelay: 0,
+                gractl: 0,
+                hitclr: 0,
+                consol: 0,
+            },
+        )
     }
 
     let atari_data_handle = atari_data_assets.add(atari_data);

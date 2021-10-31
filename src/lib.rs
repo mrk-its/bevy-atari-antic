@@ -38,7 +38,7 @@ pub mod atari_data;
 pub mod resources;
 use wgpu::BufferDescriptor;
 
-use resources::{AtariPalette, GTIA1Regs, GTIA2Regs, GTIA3Regs};
+use resources::AtariPalette;
 
 pub use atari_data::{AnticData, AnticDataInner, MEMORY_UNIFORM_SIZE};
 
@@ -71,9 +71,6 @@ impl Plugin for AtariAnticPlugin {
 #[derive(Clone)]
 pub struct GpuAnticDataInner {
     palette_buffer: Buffer,
-    buffer1: Buffer,
-    buffer2: Buffer,
-    buffer3: Buffer,
     index_buffer: Buffer,
     vertex_buffer: Buffer,
     texture: Texture,
@@ -132,24 +129,6 @@ impl RenderAsset for AnticData {
             inner.palette.as_std140().as_bytes(),
         );
 
-        render_queue.write_buffer(
-            &gpu_data.inner.buffer1,
-            0,
-            inner.gtia1.as_std140().as_bytes(),
-        );
-
-        render_queue.write_buffer(
-            &gpu_data.inner.buffer2,
-            0,
-            inner.gtia2.as_std140().as_bytes(),
-        );
-
-        render_queue.write_buffer(
-            &gpu_data.inner.buffer3,
-            0,
-            inner.gtia3.as_std140().as_bytes(),
-        );
-
         render_queue.write_texture(
             gpu_data.inner.texture.as_image_copy(),
             &inner.memory,
@@ -198,33 +177,13 @@ impl AnticData {
             mapped_at_creation: false,
         });
 
-        let buffer1 = render_device.create_buffer(&BufferDescriptor {
-            label: None,
-            usage: BufferUsages::UNIFORM | BufferUsages::COPY_DST,
-            size: GTIA1Regs::std140_size_static() as u64,
-            mapped_at_creation: false,
-        });
-
-        let buffer2 = render_device.create_buffer(&BufferDescriptor {
-            label: None,
-            usage: BufferUsages::UNIFORM | BufferUsages::COPY_DST,
-            size: GTIA2Regs::std140_size_static() as u64,
-            mapped_at_creation: false,
-        });
-
-        let buffer3 = render_device.create_buffer(&BufferDescriptor {
-            label: None,
-            usage: BufferUsages::UNIFORM | BufferUsages::COPY_DST,
-            size: GTIA3Regs::std140_size_static() as u64,
-            mapped_at_creation: false,
-        });
-
         let vertex_buffer = render_device.create_buffer(&BufferDescriptor {
             label: Some("atari_vertex_buffer"),
             usage: BufferUsages::VERTEX | BufferUsages::COPY_DST,
             size: 1000000,
             mapped_at_creation: false,
         });
+
         let index_buffer = render_device.create_buffer(&BufferDescriptor {
             label: Some("atari_index_buffer"),
             usage: BufferUsages::INDEX | BufferUsages::COPY_DST,
@@ -236,22 +195,10 @@ impl AnticData {
             entries: &[
                 BindGroupEntry {
                     binding: 0,
-                    resource: buffer1.as_entire_binding(),
-                },
-                BindGroupEntry {
-                    binding: 1,
-                    resource: buffer2.as_entire_binding(),
-                },
-                BindGroupEntry {
-                    binding: 2,
-                    resource: buffer3.as_entire_binding(),
-                },
-                BindGroupEntry {
-                    binding: 3,
                     resource: palette_buffer.as_entire_binding(),
                 },
                 BindGroupEntry {
-                    binding: 4,
+                    binding: 1,
                     resource: BindingResource::TextureView(&_texture_view),
                 },
             ],
@@ -261,9 +208,6 @@ impl AnticData {
 
         Arc::new(GpuAnticDataInner {
             palette_buffer,
-            buffer1,
-            buffer2,
-            buffer3,
             index_buffer,
             vertex_buffer,
             texture,
@@ -294,49 +238,13 @@ impl FromWorld for AnticPipeline {
                             ty: BufferBindingType::Uniform,
                             has_dynamic_offset: false,
                             min_binding_size: BufferSize::new(
-                                GTIA1Regs::std140_size_static() as u64
-                            ),
-                        },
-                        count: None,
-                    },
-                    BindGroupLayoutEntry {
-                        binding: 1,
-                        visibility: ShaderStages::FRAGMENT,
-                        ty: BindingType::Buffer {
-                            ty: BufferBindingType::Uniform,
-                            has_dynamic_offset: false,
-                            min_binding_size: BufferSize::new(
-                                GTIA2Regs::std140_size_static() as u64
-                            ),
-                        },
-                        count: None,
-                    },
-                    BindGroupLayoutEntry {
-                        binding: 2,
-                        visibility: ShaderStages::FRAGMENT,
-                        ty: BindingType::Buffer {
-                            ty: BufferBindingType::Uniform,
-                            has_dynamic_offset: false,
-                            min_binding_size: BufferSize::new(
-                                GTIA3Regs::std140_size_static() as u64
-                            ),
-                        },
-                        count: None,
-                    },
-                    BindGroupLayoutEntry {
-                        binding: 3,
-                        visibility: ShaderStages::FRAGMENT,
-                        ty: BindingType::Buffer {
-                            ty: BufferBindingType::Uniform,
-                            has_dynamic_offset: false,
-                            min_binding_size: BufferSize::new(
                                 AtariPalette::std140_size_static() as u64
                             ),
                         },
                         count: None,
                     },
                     BindGroupLayoutEntry {
-                        binding: 4,
+                        binding: 1,
                         visibility: ShaderStages::FRAGMENT,
                         ty: BindingType::Texture {
                             view_dimension: TextureViewDimension::D2,
@@ -702,7 +610,7 @@ impl ModeLineDescr {
 }
 
 #[derive(Default, Clone, Copy, Debug)]
-pub struct GTIARegs {
+pub struct _GTIARegs {
     pub colors: [u32; 8],
     pub colors_pm: [u32; 4],
     pub hposp: [f32; 4],
@@ -714,6 +622,23 @@ pub struct GTIARegs {
     pub sizem: u32,
     pub grafm: u32,
     pub _fill: u32,
+}
+
+#[repr(C)]
+#[derive(Default, Clone, Copy, Debug)]
+pub struct GTIARegs {
+    pub hposp: [u8; 4],
+    pub hposm: [u8; 4],
+    pub sizep: [u8; 4],
+    pub sizem: u8,
+    pub grafp: [u8; 4],
+    pub grafm: u8,
+    pub col: [u8; 9],
+    pub prior: u8,
+    pub vdelay: u8,
+    pub gractl: u8,
+    pub hitclr: u8,
+    pub consol: u8,
 }
 
 #[cfg(test)]
