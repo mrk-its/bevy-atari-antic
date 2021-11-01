@@ -609,21 +609,6 @@ impl ModeLineDescr {
     }
 }
 
-#[derive(Default, Clone, Copy, Debug)]
-pub struct _GTIARegs {
-    pub colors: [u32; 8],
-    pub colors_pm: [u32; 4],
-    pub hposp: [f32; 4],
-    pub hposm: [f32; 4],
-    pub player_size: [f32; 4],
-    pub missile_size: [f32; 4],
-    pub grafp: [u32; 4],
-    pub prior: u32,
-    pub sizem: u32,
-    pub grafm: u32,
-    pub _fill: u32,
-}
-
 #[repr(C)]
 #[derive(Default, Clone, Copy, Debug)]
 pub struct GTIARegs {
