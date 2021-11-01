@@ -463,7 +463,7 @@ pub fn queue_meshes(
                 value: view_bind_group,
             });
 
-            let draw_pbr = transparent_3d_draw_functions
+            let draw_function = transparent_3d_draw_functions
                 .read()
                 .get_id::<DrawCustom>()
                 .unwrap();
@@ -477,7 +477,7 @@ pub fn queue_meshes(
                 // }
                 // NOTE: row 2 of the view matrix dotted with column 3 of the model matrix
                 //       gives the z component of translation of the mesh in view space
-                let mesh_z = view_row_2.dot(mesh_uniform.transform.col(3));
+                let distance = view_row_2.dot(mesh_uniform.transform.col(3));
 
                 let key = AnticPipelineKey;
                 let pipeline = pipelines.specialize(&mut pipeline_cache, &antic_pipeline, key);
@@ -486,8 +486,8 @@ pub fn queue_meshes(
                 transparent_phase.add(Transparent3d {
                     pipeline,
                     entity,
-                    draw_function: draw_pbr,
-                    distance: mesh_z,
+                    draw_function,
+                    distance,
                 });
             }
         }
