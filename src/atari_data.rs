@@ -8,8 +8,6 @@ use wgpu::PrimitiveTopology;
 
 use super::resources::AtariPalette;
 
-pub const MEMORY_UNIFORM_SIZE: usize = 16384;
-
 #[derive(Default)]
 pub struct AnticDataInner {
     pub memory: Vec<u8>,

@@ -26,52 +26,11 @@ struct VertexOutput {
     [[location(2), interpolate(flat)]] custom: vec4<f32>;
 };
 
-struct GTIA1 {
-    color_regs1: vec4<i32>;
-    color_regs2: vec4<i32>;
-    color_pm: vec4<i32>;
-};
-
-struct GTIA2 {
-    player_size: vec4<f32>;
-    missile_size: vec4<f32>;
-    grafp: vec4<i32>;
-};
-
-struct GTIA3 {
-    hposp: vec4<f32>;
-    hposm: vec4<f32>;
-    prior: vec4<i32>;  // [prior, unused, grafm, unused]
-};
-
-
-struct MemBlock {
-    data: array<vec4<u32>, 4>;
-};
-
 let memory_offset: i32 = 7680; // 240 * 32;
-
-let memory_uniform_size: i32 = 16384;
-let memory_uniform_size_blocks: i32 = 128;
 
 let COLPM0: i32 = 0x12;
 let COLPF0: i32 = 0x16;
 let COLBK: i32 = 0x1A;
-
-[[block]]
-struct GTIA1Regs {
-    regs: array<GTIA1, 240>;
-};
-
-[[block]]
-struct GTIA2Regs {
-    regs: array<GTIA2, 240>;
-};
-
-[[block]]
-struct GTIA3Regs {
-    regs: array<GTIA3, 240>;
-};
 
 [[block]]
 struct Palette {

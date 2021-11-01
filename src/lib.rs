@@ -35,7 +35,7 @@ use wgpu::BufferDescriptor;
 
 use resources::AtariPalette;
 
-pub use atari_data::{AnticData, AnticDataInner, MEMORY_UNIFORM_SIZE};
+pub use atari_data::{AnticData, AnticDataInner};
 
 use crevice::std140::{AsStd140, Std140};
 
