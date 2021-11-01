@@ -58,7 +58,7 @@ fn quit_after_few_frames(mut cnt: Local<u32>, mut app_exit_events: EventWriter<A
 
 fn update(mut atari_data_assets: ResMut<Assets<AnticData>>, query: Query<&Handle<AnticData>>) {
     let span = bevy::utils::tracing::span!(bevy::utils::tracing::Level::INFO, "my_span");
-    let entered = span.enter();
+    let _entered = span.enter();
     for handle in query.iter() {
         if let Some(atari_data) = atari_data_assets.get_mut(handle) {
             let mut inner = atari_data.inner.write();

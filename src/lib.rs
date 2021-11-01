@@ -12,7 +12,6 @@ use bevy::{
     },
     prelude::{AddAsset, App, Assets, Handle, Plugin},
     render2::{
-        mesh,
         render_asset::{PrepareAssetError, RenderAsset, RenderAssetPlugin, RenderAssets},
         render_component::{ComponentUniforms, ExtractComponentPlugin},
         render_phase::{
@@ -28,10 +27,6 @@ use bevy::{
 
 pub const ANTIC_SHADER_HANDLE: HandleUntyped =
     HandleUntyped::weak_from_u64(Shader::TYPE_UUID, 4805239651767799999);
-
-#[derive(TypeUuid, Clone)]
-#[uuid = "bea612c2-68ed-4432-8d9c-f03ebea97077"]
-pub struct AnticMesh(mesh::Mesh);
 
 use std::sync::Arc;
 pub mod atari_data;
@@ -53,7 +48,7 @@ impl Plugin for AtariAnticPlugin {
         shaders.set_untracked(ANTIC_SHADER_HANDLE, antic_shader);
 
         app.add_asset::<AnticData>()
-            .add_asset::<AnticMesh>()
+            // .add_asset::<AnticMesh>()
             .add_plugin(ExtractComponentPlugin::<Handle<AnticData>>::default())
             .add_plugin(UniformComponentPlugin::<TransformUniform>::default())
             .add_plugin(RenderAssetPlugin::<AnticData>::default());
@@ -113,8 +108,8 @@ impl RenderAsset for AnticData {
         let mut gpu_data = (**cache).as_mut().unwrap();
         let mesh = extracted_asset.create_mesh();
 
-        let vertex_data = mesh.0.get_vertex_buffer_data();
-        let index_data = mesh.0.get_index_buffer_bytes();
+        let vertex_data = mesh.get_vertex_buffer_data();
+        let index_data = mesh.get_index_buffer_bytes();
         gpu_data.index_count = inner.indices.len() as u32;
 
         if let Some(index_data) = index_data {

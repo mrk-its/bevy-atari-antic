@@ -8,8 +8,6 @@ use wgpu::PrimitiveTopology;
 
 use super::resources::AtariPalette;
 
-use crate::AnticMesh;
-
 pub const MEMORY_UNIFORM_SIZE: usize = 16384;
 
 #[derive(Default)]
@@ -79,14 +77,14 @@ impl AnticData {
         inner.indices.clear();
     }
 
-    pub fn create_mesh(&self) -> AnticMesh {
+    pub fn create_mesh(&self) -> Mesh {
         let mut mesh = Mesh::new(PrimitiveTopology::TriangleList);
         let inner = self.inner.read();
         mesh.set_attribute(Mesh::ATTRIBUTE_POSITION, inner.positions.clone());
         mesh.set_attribute(Mesh::ATTRIBUTE_UV_0, inner.uvs.clone());
         mesh.set_attribute("Vertex_ZCustom", inner.custom.clone());
         mesh.set_indices(Some(Indices::U16(inner.indices.clone())));
-        AnticMesh(mesh)
+        mesh
     }
 
     pub fn insert_mode_line(&mut self, mode_line: &crate::ModeLineDescr) {
