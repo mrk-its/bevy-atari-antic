@@ -2,7 +2,7 @@ use bevy::{
     app::AppExit,
     ecs::prelude::*,
     math::Vec3,
-    prelude::{App, Assets, GlobalTransform, Handle, Transform},
+    prelude::{App, Assets, Handle},
     render2::{camera::OrthographicCameraBundle, view::Msaa},
     window::WindowDescriptor,
     PipelinedDefaultPlugins,
@@ -13,8 +13,8 @@ use bevy_atari_antic::{AtariAnticPlugin, ModeLineDescr};
 fn main() {
     let mut app = App::new();
     app.insert_resource(WindowDescriptor {
-        width: 768.0,
-        height: 480.0,
+        width: 384.0,
+        height: 240.0,
         scale_factor_override: Some(1.0),
         ..Default::default()
     });
@@ -220,15 +220,11 @@ fn setup(mut commands: Commands, mut atari_data_assets: ResMut<Assets<AnticData>
     let atari_data_handle = atari_data_assets.add(atari_data);
 
     // cube
-    commands.spawn().insert_bundle((
-        Transform::from_xyz(-1.0, 0.0, 0.0),
-        GlobalTransform::default(),
-        atari_data_handle,
-    ));
+    commands.spawn().insert_bundle((atari_data_handle,));
 
     let mut camera_bundle = OrthographicCameraBundle::new_2d();
     camera_bundle.camera.name = Some("camera_3d".to_string());
-    camera_bundle.transform.scale = Vec3::new(0.5, 0.5, 1.0);
+    camera_bundle.transform.scale = Vec3::new(1.0, 1.0, 1.0);
     camera_bundle.transform.translation = Vec3::new(0.0, 0.0, 0.0);
 
     // camera

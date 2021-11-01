@@ -1,26 +1,23 @@
-use bevy::math::Mat4;
-use bevy::prelude::{GlobalTransform, HandleUntyped};
+use bevy::prelude::HandleUntyped;
 use bevy::reflect::TypeUuid;
 
-use bevy::render2::render_component::{DynamicUniformIndex, UniformComponentPlugin};
-use bevy::render2::view::{ViewUniformOffset, ViewUniforms};
 use bevy::{
     core_pipeline::Transparent3d,
     ecs::{
         prelude::*,
         system::{lifetimeless::*, SystemParamItem},
     },
-    prelude::{AddAsset, App, Assets, Handle, Plugin},
+    prelude::{info, AddAsset, App, Assets, Handle, Plugin},
     render2::{
+        camera::{CameraProjection, OrthographicProjection},
         render_asset::{PrepareAssetError, RenderAsset, RenderAssetPlugin, RenderAssets},
-        render_component::{ComponentUniforms, ExtractComponentPlugin},
+        render_component::ExtractComponentPlugin,
         render_phase::{
             AddRenderCommand, DrawFunctions, RenderCommand, RenderPhase, TrackedRenderPass,
         },
         render_resource::*,
         renderer::{RenderDevice, RenderQueue},
         texture::BevyDefault,
-        view::ExtractedView,
         RenderApp, RenderStage,
     },
 };
@@ -43,6 +40,11 @@ pub struct AtariAnticPlugin;
 
 impl Plugin for AtariAnticPlugin {
     fn build(&self, app: &mut App) {
+        let mut projection = OrthographicProjection::default();
+        projection.update(384.0, 240.0);
+        let projection_matrix = projection.get_projection_matrix();
+        info!("projection matrix: {:?}", projection_matrix);
+
         let mut shaders = app.world.get_resource_mut::<Assets<Shader>>().unwrap();
         let antic_shader = Shader::from_wgsl(include_str!("antic.wgsl"));
         shaders.set_untracked(ANTIC_SHADER_HANDLE, antic_shader);
@@ -50,16 +52,14 @@ impl Plugin for AtariAnticPlugin {
         app.add_asset::<AnticData>()
             // .add_asset::<AnticMesh>()
             .add_plugin(ExtractComponentPlugin::<Handle<AnticData>>::default())
-            .add_plugin(UniformComponentPlugin::<TransformUniform>::default())
             .add_plugin(RenderAssetPlugin::<AnticData>::default());
         app.sub_app(RenderApp)
-            .add_render_command::<Transparent3d, DrawCustom>()
+            .add_render_command::<Transparent3d, SetAnticPipeline>()
             .init_resource::<AnticPipeline>()
             .init_resource::<Option<GpuAnticData>>()
             .init_resource::<SpecializedPipelines<AnticPipeline>>()
             .add_system_to_stage(RenderStage::Extract, extract_meshes)
-            .add_system_to_stage(RenderStage::Queue, queue_meshes)
-            .add_system_to_stage(RenderStage::Queue, queue_transform_bind_group);
+            .add_system_to_stage(RenderStage::Queue, queue_meshes);
     }
 }
 
@@ -78,6 +78,12 @@ pub struct GpuAnticData {
     inner: Arc<GpuAnticDataInner>,
     index_count: u32,
 }
+
+const DATA_TEXTURE_SIZE: Extent3d = Extent3d {
+    width: 256,
+    height: 11 * 4 * 4 + (240 * 32 / 256),
+    depth_or_array_layers: 1,
+};
 
 impl RenderAsset for AnticData {
     type ExtractedAsset = AnticData;
@@ -132,11 +138,7 @@ impl RenderAsset for AnticData {
                 bytes_per_row: Some(std::num::NonZeroU32::new(256 as u32).unwrap()),
                 rows_per_image: None,
             },
-            Extent3d {
-                width: 256,
-                height: 11 * 4 * 4,
-                depth_or_array_layers: 1,
-            },
+            DATA_TEXTURE_SIZE,
         );
         Ok(gpu_data.clone())
     }
@@ -149,11 +151,7 @@ impl AnticData {
     ) -> Arc<GpuAnticDataInner> {
         bevy::prelude::info!("creating atari buffers");
         let texture_descriptor = wgpu::TextureDescriptor {
-            size: Extent3d {
-                width: 256,
-                height: 11 * 4 * 4,
-                depth_or_array_layers: 1,
-            },
+            size: DATA_TEXTURE_SIZE,
             dimension: TextureDimension::D2,
             format: wgpu::TextureFormat::R8Uint,
             label: Some("data_texture"),
@@ -214,8 +212,6 @@ impl AnticData {
 
 pub struct AnticPipeline {
     atari_data_layout: BindGroupLayout,
-    view_layout: BindGroupLayout,
-    mesh_layout: BindGroupLayout,
 }
 
 // TODO: this pattern for initializing the shaders / pipeline isn't ideal. this should be handled by the asset system
@@ -252,44 +248,7 @@ impl FromWorld for AnticPipeline {
                 label: Some("atari_data_layout"),
             });
 
-        let view_layout = render_device.create_bind_group_layout(&BindGroupLayoutDescriptor {
-            entries: &[
-                // View
-                BindGroupLayoutEntry {
-                    binding: 0,
-                    visibility: ShaderStages::VERTEX | ShaderStages::FRAGMENT,
-                    ty: BindingType::Buffer {
-                        ty: BufferBindingType::Uniform,
-                        has_dynamic_offset: true,
-                        // TODO: change this to ViewUniform::std140_size_static once crevice fixes this!
-                        // Context: https://github.com/LPGhatguy/crevice/issues/29
-                        min_binding_size: BufferSize::new(144),
-                    },
-                    count: None,
-                },
-            ],
-            label: Some("atari_view_layout"),
-        });
-        let mesh_layout =
-            render_device.create_bind_group_layout(&BindGroupLayoutDescriptor {
-                entries: &[BindGroupLayoutEntry {
-                    binding: 0,
-                    visibility: ShaderStages::VERTEX | ShaderStages::FRAGMENT,
-                    ty: BindingType::Buffer {
-                        ty: BufferBindingType::Uniform,
-                        has_dynamic_offset: true,
-                        min_binding_size: BufferSize::new(
-                            TransformUniform::std140_size_static() as u64
-                        ),
-                    },
-                    count: None,
-                }],
-                label: Some("atari_mesh_layout"),
-            });
-
         AnticPipeline {
-            view_layout,
-            mesh_layout,
             atari_data_layout,
         }
     }
@@ -371,9 +330,9 @@ impl SpecializedPipeline for AnticPipeline {
                 },
             }),
             layout: Some(vec![
-                self.view_layout.clone(),
+                // self.view_layout.clone(),
                 self.atari_data_layout.clone(),
-                self.mesh_layout.clone(),
+                // self.mesh_layout.clone(),
             ]),
             multisample: MultisampleState::default(),
             primitive: PrimitiveState {
@@ -389,155 +348,50 @@ impl SpecializedPipeline for AnticPipeline {
     }
 }
 
-#[derive(AsStd140, Clone)]
-pub struct TransformUniform {
-    pub transform: Mat4,
-}
-
 pub fn extract_meshes(
     mut commands: Commands,
     mut previous_len: Local<usize>,
-    query: Query<(Entity, &GlobalTransform)>,
+    query: Query<Entity>,
 ) {
     let mut values = Vec::with_capacity(*previous_len);
-    for (entity, transform) in query.iter() {
-        let transform = transform.compute_matrix();
-        values.push((entity, (TransformUniform { transform },)));
+    for entity in query.iter() {
+        values.push((entity, (1,)));
     }
     *previous_len = values.len();
     commands.insert_or_spawn_batch(values);
 }
 
-pub struct AtariTransformBindGroup {
-    pub value: BindGroup,
-}
-
-pub fn queue_transform_bind_group(
-    mut commands: Commands,
-    pipeline: Res<AnticPipeline>,
-    render_device: Res<RenderDevice>,
-    transform_uniforms: Res<ComponentUniforms<TransformUniform>>,
-) {
-    if let Some(binding) = transform_uniforms.uniforms().binding() {
-        commands.insert_resource(AtariTransformBindGroup {
-            value: render_device.create_bind_group(&BindGroupDescriptor {
-                entries: &[BindGroupEntry {
-                    binding: 0,
-                    resource: binding,
-                }],
-                label: Some("transform_bind_group"),
-                layout: &pipeline.mesh_layout,
-            }),
-        });
-    }
-}
-pub struct AtariViewBindGroup {
-    pub value: BindGroup,
-}
-
 #[allow(clippy::too_many_arguments)]
 pub fn queue_meshes(
-    mut commands: Commands,
     transparent_3d_draw_functions: Res<DrawFunctions<Transparent3d>>,
-    render_device: Res<RenderDevice>,
-    pipeline: Res<AnticPipeline>,
     antic_pipeline: Res<AnticPipeline>,
     mut pipelines: ResMut<SpecializedPipelines<AnticPipeline>>,
     mut pipeline_cache: ResMut<RenderPipelineCache>,
-    view_uniforms: Res<ViewUniforms>,
-    standard_material_meshes: Query<(Entity, &TransformUniform), With<Handle<AnticData>>>,
-    mut views: Query<(Entity, &ExtractedView, &mut RenderPhase<Transparent3d>)>,
+    atari_data: Query<Entity, With<Handle<AnticData>>>,
+    mut views: Query<(Entity, &mut RenderPhase<Transparent3d>)>,
 ) {
-    if let Some(view_binding) = view_uniforms.uniforms.binding() {
-        for (entity, view, mut transparent_phase) in views.iter_mut() {
-            let view_bind_group = render_device.create_bind_group(&BindGroupDescriptor {
-                entries: &[BindGroupEntry {
-                    binding: 0,
-                    resource: view_binding.clone(),
-                }],
-                label: Some("atari_view_bind_group"),
-                layout: &pipeline.view_layout,
+    for (_entity, mut transparent_phase) in views.iter_mut() {
+        let draw_function = transparent_3d_draw_functions
+            .read()
+            .get_id::<SetAnticPipeline>()
+            .unwrap();
+
+        for entity in atari_data.iter() {
+            let key = AnticPipelineKey;
+            let pipeline = pipelines.specialize(&mut pipeline_cache, &antic_pipeline, key);
+
+            transparent_phase.add(Transparent3d {
+                pipeline,
+                entity,
+                draw_function,
+                distance: 0.0,
             });
-
-            commands.entity(entity).insert(AtariViewBindGroup {
-                value: view_bind_group,
-            });
-
-            let draw_function = transparent_3d_draw_functions
-                .read()
-                .get_id::<DrawCustom>()
-                .unwrap();
-
-            let view_matrix = view.transform.compute_matrix();
-            let view_row_2 = view_matrix.row(2);
-
-            for (entity, mesh_uniform) in standard_material_meshes.iter() {
-                // if !render_materials.contains_key(material_handle) {
-                //     continue;
-                // }
-                // NOTE: row 2 of the view matrix dotted with column 3 of the model matrix
-                //       gives the z component of translation of the mesh in view space
-                let distance = view_row_2.dot(mesh_uniform.transform.col(3));
-
-                let key = AnticPipelineKey;
-                let pipeline = pipelines.specialize(&mut pipeline_cache, &antic_pipeline, key);
-
-                // TODO: currently there is only "transparent phase". this should pick transparent vs opaque according to the mesh material
-                transparent_phase.add(Transparent3d {
-                    pipeline,
-                    entity,
-                    draw_function,
-                    distance,
-                });
-            }
         }
     }
 }
-pub struct SetMeshViewBindGroup<const I: usize>;
-impl<const I: usize> RenderCommand<Transparent3d> for SetMeshViewBindGroup<I> {
-    type Param = SQuery<(Read<ViewUniformOffset>, Read<AtariViewBindGroup>)>;
-    #[inline]
-    fn render<'w>(
-        view: Entity,
-        _item: &Transparent3d,
-        view_query: SystemParamItem<'w, '_, Self::Param>,
-        pass: &mut TrackedRenderPass<'w>,
-    ) {
-        let (view_uniform, view_bind_group) = view_query.get(view).unwrap();
-        pass.set_bind_group(I, &view_bind_group.value, &[view_uniform.offset]);
-    }
-}
 
-pub struct SetTransformBindGroup<const I: usize>;
-impl<const I: usize> RenderCommand<Transparent3d> for SetTransformBindGroup<I> {
-    type Param = (
-        SRes<AtariTransformBindGroup>,
-        SQuery<Read<DynamicUniformIndex<TransformUniform>>>,
-    );
-    #[inline]
-    fn render<'w>(
-        _view: Entity,
-        item: &Transparent3d,
-        (transform_bind_group, mesh_query): SystemParamItem<'w, '_, Self::Param>,
-        pass: &mut TrackedRenderPass<'w>,
-    ) {
-        let transform_index = mesh_query.get(item.entity).unwrap();
-        pass.set_bind_group(
-            I,
-            &transform_bind_group.into_inner().value,
-            &[transform_index.index()],
-        );
-    }
-}
-
-type DrawCustom = (
-    SetMeshViewBindGroup<0>,
-    SetTransformBindGroup<2>,
-    SetCustomMaterialPipeline,
-);
-
-struct SetCustomMaterialPipeline;
-impl RenderCommand<Transparent3d> for SetCustomMaterialPipeline {
+struct SetAnticPipeline;
+impl RenderCommand<Transparent3d> for SetAnticPipeline {
     type Param = (
         SRes<RenderPipelineCache>,
         SRes<RenderAssets<AnticData>>,
@@ -550,17 +404,15 @@ impl RenderCommand<Transparent3d> for SetCustomMaterialPipeline {
         pass: &mut TrackedRenderPass<'w>,
     ) {
         let antic_data_handle = query.get(item.entity).unwrap();
-        // let image_bind_group = image_bind_groups.into_inner().values.get(image_handle).unwrap();
         let gpu_atari_data = atari_data_assets
             .into_inner()
             .get(antic_data_handle)
             .unwrap();
-        // let image_handle = image_assets.into_inner().get(image_handle).unwrap();
 
         let index_count = gpu_atari_data.index_count;
         if let Some(pipeline) = pipeline_cache.into_inner().get(item.pipeline) {
             pass.set_render_pipeline(pipeline);
-            pass.set_bind_group(1, &gpu_atari_data.inner.bind_group, &[]);
+            pass.set_bind_group(0, &gpu_atari_data.inner.bind_group, &[]);
             pass.set_vertex_buffer(0, gpu_atari_data.inner.vertex_buffer.slice(..));
             pass.set_index_buffer(
                 gpu_atari_data
