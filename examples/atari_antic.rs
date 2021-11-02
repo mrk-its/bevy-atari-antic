@@ -1,20 +1,26 @@
 use bevy::{
     app::AppExit,
     ecs::prelude::*,
-    math::Vec3,
-    prelude::{App, Assets, Handle},
-    render2::{camera::OrthographicCameraBundle, view::Msaa},
+    math::{Quat, Vec3},
+    pbr2::{PbrBundle, StandardMaterial},
+    prelude::{App, Assets, Handle, Transform},
+    render2::{
+        camera::{OrthographicCameraBundle, PerspectiveCameraBundle},
+        color::Color,
+        mesh::{shape, Mesh},
+        view::Msaa,
+    },
     window::WindowDescriptor,
     PipelinedDefaultPlugins,
 };
-use bevy_atari_antic::{atari_data::AnticData, GTIARegs};
+use bevy_atari_antic::{atari_data::AnticData, GTIARegs, ANTIC_IMAGE_HANDLE};
 use bevy_atari_antic::{AtariAnticPlugin, ModeLineDescr};
 
 fn main() {
     let mut app = App::new();
     app.insert_resource(WindowDescriptor {
-        width: 384.0,
-        height: 240.0,
+        width: 1280.0,
+        height: 720.0,
         scale_factor_override: Some(1.0),
         ..Default::default()
     });
@@ -70,7 +76,12 @@ fn update(mut atari_data_assets: ResMut<Assets<AnticData>>, query: Query<&Handle
     }
 }
 
-fn setup(mut commands: Commands, mut atari_data_assets: ResMut<Assets<AnticData>>) {
+fn setup(
+    mut commands: Commands,
+    mut atari_data_assets: ResMut<Assets<AnticData>>,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
+) {
     let mut atari_data = AnticData::default();
 
     let coffs = atari_data.reserve_antic_memory(1024, &mut |data| {
@@ -222,11 +233,44 @@ fn setup(mut commands: Commands, mut atari_data_assets: ResMut<Assets<AnticData>
     // cube
     commands.spawn().insert_bundle((atari_data_handle,));
 
-    let mut camera_bundle = OrthographicCameraBundle::new_2d();
-    camera_bundle.camera.name = Some("camera_3d".to_string());
-    camera_bundle.transform.scale = Vec3::new(1.0, 1.0, 1.0);
-    camera_bundle.transform.translation = Vec3::new(0.0, 0.0, 0.0);
+    // let mut camera_bundle = OrthographicCameraBundle::new_2d();
+    // camera_bundle.camera.name = Some("camera_3d".to_string());
+    // camera_bundle.transform.scale = Vec3::new(1.0, 1.0, 1.0);
+    // camera_bundle.transform.translation = Vec3::new(0.0, 0.0, 0.0);
+
+    // // camera
+    // commands.spawn_bundle(camera_bundle);
+    // create a new quad mesh. this is what we will apply the texture to
+    let quad_width = 8.0;
+    let quad_handle = meshes.add(Mesh::from(shape::Quad::new(bevy::math::Vec2::new(
+        quad_width,
+        quad_width * 240.0 / 384.0,
+    ))));
+
+    let blue_material_handle = materials.add(StandardMaterial {
+        base_color: Color::rgba(1.1, 1.0, 1.0, 1.0),
+        base_color_texture: Some(crate::ANTIC_IMAGE_HANDLE.typed()),
+        unlit: true,
+        ..Default::default()
+    });
+
+    for z in -10..=1 {
+        commands.spawn_bundle(PbrBundle {
+            mesh: quad_handle.clone(),
+            material: blue_material_handle.clone(),
+            transform: Transform {
+                translation: Vec3::new(0.0, 0.0, z as f32 * 2.0),
+                rotation: Quat::from_rotation_x(-std::f32::consts::PI / 5.0),
+                ..Default::default()
+            },
+            ..Default::default()
+        });
+    }
 
     // camera
-    commands.spawn_bundle(camera_bundle);
+    commands.spawn_bundle(PerspectiveCameraBundle {
+        transform: Transform::from_xyz(-6.0, 5.0, 5.0)
+            .looking_at(Vec3::new(0.0, 0.0, -4.0), Vec3::Y),
+        ..Default::default()
+    });
 }

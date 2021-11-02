@@ -1,8 +1,9 @@
 pub mod render;
-
 use bevy::prelude::HandleUntyped;
 use bevy::reflect::TypeUuid;
 
+use bevy::render2::render_graph::RenderGraph;
+use bevy::render2::render_phase::{DrawFunctions, RenderPhase};
 use bevy::{
     core_pipeline::Transparent3d,
     prelude::{info, AddAsset, App, Assets, Handle, Plugin},
@@ -12,6 +13,7 @@ use bevy::{
         render_component::ExtractComponentPlugin,
         render_phase::AddRenderCommand,
         render_resource::*,
+        texture::Image,
         RenderApp, RenderStage,
     },
 };
@@ -19,8 +21,12 @@ use bevy::{
 pub const ANTIC_SHADER_HANDLE: HandleUntyped =
     HandleUntyped::weak_from_u64(Shader::TYPE_UUID, 4805239651767799999);
 
+pub const ANTIC_IMAGE_HANDLE: HandleUntyped =
+    HandleUntyped::weak_from_u64(Image::TYPE_UUID, 4805239651767799988);
+
 pub mod atari_data;
 pub mod resources;
+use render::pass::{AnticPassNode, AnticPhase};
 
 pub use atari_data::{AnticData, AnticDataInner};
 
@@ -41,12 +47,42 @@ impl Plugin for AtariAnticPlugin {
             // .add_asset::<AnticMesh>()
             .add_plugin(ExtractComponentPlugin::<Handle<AnticData>>::default())
             .add_plugin(RenderAssetPlugin::<AnticData>::default());
-        app.sub_app(RenderApp)
-            .add_render_command::<Transparent3d, render::SetAnticPipeline>()
+
+        let render_app = app.sub_app(RenderApp);
+        render_app
+            .init_resource::<DrawFunctions<AnticPhase>>()
+            .init_resource::<RenderPhase<AnticPhase>>()
             .init_resource::<render::AnticPipeline>()
             .init_resource::<Option<render::GpuAnticData>>()
             .init_resource::<SpecializedPipelines<render::AnticPipeline>>()
+            .add_render_command::<AnticPhase, render::SetAnticPipeline>()
             .add_system_to_stage(RenderStage::Queue, render::queue_meshes);
+
+        let antic_node = AnticPassNode::new(&mut render_app.world);
+        let mut graph = render_app.world.get_resource_mut::<RenderGraph>().unwrap();
+        graph.add_node("antic_node", antic_node);
+        graph
+            .add_node_edge(
+                "antic_node",
+                bevy::core_pipeline::node::MAIN_PASS_DEPENDENCIES,
+            )
+            .unwrap();
+        let mut image = Image::new(
+            Extent3d {
+                width: 384,
+                height: 240,
+                depth_or_array_layers: 1,
+            },
+            wgpu::TextureDimension::D2,
+            vec![0; 384 * 240 * 4],
+            wgpu::TextureFormat::Rgba8UnormSrgb,
+        );
+        image.texture_descriptor.usage = wgpu::TextureUsages::TEXTURE_BINDING
+            | wgpu::TextureUsages::RENDER_ATTACHMENT
+            | wgpu::TextureUsages::COPY_DST;
+
+        let mut images = app.world.get_resource_mut::<Assets<Image>>().unwrap();
+        images.set_untracked(ANTIC_IMAGE_HANDLE, image);
     }
 }
 

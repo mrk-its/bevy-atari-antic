@@ -1,10 +1,9 @@
 use bevy::{
-    core_pipeline::Transparent3d,
     ecs::{
         prelude::*,
         system::{lifetimeless::*, SystemParamItem},
     },
-    prelude::Handle,
+    prelude::{info, Handle},
     render2::{
         render_asset::{PrepareAssetError, RenderAsset, RenderAssets},
         render_phase::{DrawFunctions, RenderCommand, RenderPhase, TrackedRenderPass},
@@ -13,11 +12,11 @@ use bevy::{
         texture::BevyDefault,
     },
 };
-
+pub mod pass;
+use crate::resources::AtariPalette;
+use pass::AnticPhase;
 use std::sync::Arc;
 use wgpu::BufferDescriptor;
-
-use crate::resources::AtariPalette;
 
 pub use crate::atari_data::{AnticData, AnticDataInner};
 use crate::ANTIC_SHADER_HANDLE;
@@ -40,7 +39,7 @@ pub struct GpuAnticData {
     index_count: u32,
 }
 
-const DATA_TEXTURE_SIZE: Extent3d = Extent3d {
+pub const DATA_TEXTURE_SIZE: Extent3d = Extent3d {
     width: 256,
     height: 11 * 4 * 4 + (240 * 32 / 256),
     depth_or_array_layers: 1,
@@ -256,7 +255,7 @@ impl SpecializedPipeline for AnticPipeline {
                 shader_defs: vec![],
                 entry_point: "fragment".into(),
                 targets: vec![ColorTargetState {
-                    format: TextureFormat::bevy_default(),
+                    format: TextureFormat::Rgba8UnormSrgb,
                     blend: Some(BlendState {
                         color: BlendComponent {
                             src_factor: BlendFactor::SrcAlpha,
@@ -272,22 +271,7 @@ impl SpecializedPipeline for AnticPipeline {
                     write_mask: ColorWrites::ALL,
                 }],
             }),
-            depth_stencil: Some(DepthStencilState {
-                format: TextureFormat::Depth32Float,
-                depth_write_enabled: true,
-                depth_compare: CompareFunction::Greater,
-                stencil: StencilState {
-                    front: StencilFaceState::IGNORE,
-                    back: StencilFaceState::IGNORE,
-                    read_mask: 0,
-                    write_mask: 0,
-                },
-                bias: DepthBiasState {
-                    constant: 0,
-                    slope_scale: 0.0,
-                    clamp: 0.0,
-                },
-            }),
+            depth_stencil: None,
             layout: Some(vec![
                 // self.view_layout.clone(),
                 self.atari_data_layout.clone(),
@@ -307,50 +291,33 @@ impl SpecializedPipeline for AnticPipeline {
     }
 }
 
-pub fn extract_meshes(
-    mut commands: Commands,
-    mut previous_len: Local<usize>,
-    query: Query<Entity>,
-) {
-    let mut values = Vec::with_capacity(*previous_len);
-    for entity in query.iter() {
-        values.push((entity, (1,)));
-    }
-    *previous_len = values.len();
-    commands.insert_or_spawn_batch(values);
-}
-
 #[allow(clippy::too_many_arguments)]
 pub fn queue_meshes(
-    transparent_3d_draw_functions: Res<DrawFunctions<Transparent3d>>,
+    transparent_3d_draw_functions: Res<DrawFunctions<AnticPhase>>,
     antic_pipeline: Res<AnticPipeline>,
+    mut render_phase: ResMut<RenderPhase<AnticPhase>>,
     mut pipelines: ResMut<SpecializedPipelines<AnticPipeline>>,
     mut pipeline_cache: ResMut<RenderPipelineCache>,
     atari_data: Query<Entity, With<Handle<AnticData>>>,
-    mut views: Query<(Entity, &mut RenderPhase<Transparent3d>)>,
 ) {
-    for (_entity, mut transparent_phase) in views.iter_mut() {
-        let draw_function = transparent_3d_draw_functions
-            .read()
-            .get_id::<SetAnticPipeline>()
-            .unwrap();
-
-        for entity in atari_data.iter() {
-            let key = AnticPipelineKey;
-            let pipeline = pipelines.specialize(&mut pipeline_cache, &antic_pipeline, key);
-
-            transparent_phase.add(Transparent3d {
-                pipeline,
-                entity,
-                draw_function,
-                distance: 0.0,
-            });
-        }
+    let draw_function = transparent_3d_draw_functions
+        .read()
+        .get_id::<SetAnticPipeline>()
+        .unwrap();
+    render_phase.items.clear();
+    for entity in atari_data.iter() {
+        let key = AnticPipelineKey;
+        let pipeline = pipelines.specialize(&mut pipeline_cache, &antic_pipeline, key);
+        render_phase.add(AnticPhase {
+            pipeline,
+            entity,
+            draw_function,
+        });
     }
 }
 
 pub struct SetAnticPipeline;
-impl RenderCommand<Transparent3d> for SetAnticPipeline {
+impl RenderCommand<AnticPhase> for SetAnticPipeline {
     type Param = (
         SRes<RenderPipelineCache>,
         SRes<RenderAssets<AnticData>>,
@@ -358,7 +325,7 @@ impl RenderCommand<Transparent3d> for SetAnticPipeline {
     );
     fn render<'w>(
         _view: Entity,
-        item: &Transparent3d,
+        item: &AnticPhase,
         (pipeline_cache, atari_data_assets, query): SystemParamItem<'w, '_, Self::Param>,
         pass: &mut TrackedRenderPass<'w>,
     ) {
