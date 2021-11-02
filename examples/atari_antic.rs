@@ -1,12 +1,10 @@
 use bevy::{
     app::AppExit,
     ecs::prelude::*,
-    math::{Quat, Vec3},
-    pbr2::{PbrBundle, StandardMaterial},
+    math::Vec3,
     prelude::{App, Assets, Handle, Transform},
     render2::{
-        camera::{OrthographicCameraBundle, PerspectiveCameraBundle},
-        color::Color,
+        camera::OrthographicCameraBundle,
         mesh::{shape, Mesh},
         view::Msaa,
     },
@@ -15,6 +13,8 @@ use bevy::{
 };
 use bevy_atari_antic::{atari_data::AnticData, GTIARegs, ANTIC_IMAGE_HANDLE};
 use bevy_atari_antic::{AtariAnticPlugin, ModeLineDescr};
+
+use bevy::sprite2::{PipelinedSpriteBundle, Sprite};
 
 fn main() {
     let mut app = App::new();
@@ -80,7 +80,6 @@ fn setup(
     mut commands: Commands,
     mut atari_data_assets: ResMut<Assets<AnticData>>,
     mut meshes: ResMut<Assets<Mesh>>,
-    mut materials: ResMut<Assets<StandardMaterial>>,
 ) {
     let mut atari_data = AnticData::default();
 
@@ -230,47 +229,21 @@ fn setup(
 
     let atari_data_handle = atari_data_assets.add(atari_data);
 
-    // cube
     commands.spawn().insert_bundle((atari_data_handle,));
 
-    // let mut camera_bundle = OrthographicCameraBundle::new_2d();
-    // camera_bundle.camera.name = Some("camera_3d".to_string());
-    // camera_bundle.transform.scale = Vec3::new(1.0, 1.0, 1.0);
-    // camera_bundle.transform.translation = Vec3::new(0.0, 0.0, 0.0);
-
-    // // camera
-    // commands.spawn_bundle(camera_bundle);
-    // create a new quad mesh. this is what we will apply the texture to
-    let quad_width = 8.0;
-    let quad_handle = meshes.add(Mesh::from(shape::Quad::new(bevy::math::Vec2::new(
-        quad_width,
-        quad_width * 240.0 / 384.0,
-    ))));
-
-    let blue_material_handle = materials.add(StandardMaterial {
-        base_color: Color::rgba(1.1, 1.0, 1.0, 1.0),
-        base_color_texture: Some(crate::ANTIC_IMAGE_HANDLE.typed()),
-        unlit: true,
-        ..Default::default()
-    });
-
-    for z in -10..=1 {
-        commands.spawn_bundle(PbrBundle {
-            mesh: quad_handle.clone(),
-            material: blue_material_handle.clone(),
-            transform: Transform {
-                translation: Vec3::new(0.0, 0.0, z as f32 * 2.0),
-                rotation: Quat::from_rotation_x(-std::f32::consts::PI / 5.0),
-                ..Default::default()
-            },
-            ..Default::default()
-        });
+    for x in -1..=1 {
+        for y in -1..=1 {
+            commands.spawn_bundle(PipelinedSpriteBundle {
+                sprite: Sprite::default(),
+                texture: crate::ANTIC_IMAGE_HANDLE.typed(),
+                transform: Transform {
+                    translation: Vec3::new(x as f32 * 400.0, y as f32 * 240.0, 0.0),
+                    ..Default::default()
+                },
+                global_transform: Default::default(),
+            });
+        }
     }
 
-    // camera
-    commands.spawn_bundle(PerspectiveCameraBundle {
-        transform: Transform::from_xyz(-6.0, 5.0, 5.0)
-            .looking_at(Vec3::new(0.0, 0.0, -4.0), Vec3::Y),
-        ..Default::default()
-    });
+    commands.spawn_bundle(OrthographicCameraBundle::new_2d());
 }
