@@ -23,6 +23,8 @@ pub const ANTIC_SHADER_HANDLE: HandleUntyped =
 
 pub const ANTIC_IMAGE_HANDLE: HandleUntyped =
     HandleUntyped::weak_from_u64(Image::TYPE_UUID, 4805239651767799988);
+pub const ANTIC_COLLISIONS_HANDLE: HandleUntyped =
+    HandleUntyped::weak_from_u64(Image::TYPE_UUID, 4805239651767799989);
 
 pub mod atari_data;
 pub mod resources;
@@ -83,6 +85,22 @@ impl Plugin for AtariAnticPlugin {
 
         let mut images = app.world.get_resource_mut::<Assets<Image>>().unwrap();
         images.set_untracked(ANTIC_IMAGE_HANDLE, image);
+
+        let mut collisions_image = Image::new(
+            Extent3d {
+                width: 384,
+                height: 240,
+                depth_or_array_layers: 1,
+            },
+            wgpu::TextureDimension::D2,
+            vec![0; 384 * 240 * 4 * 2],
+            wgpu::TextureFormat::Rg32Uint,
+        );
+        collisions_image.texture_descriptor.usage = wgpu::TextureUsages::TEXTURE_BINDING
+            | wgpu::TextureUsages::RENDER_ATTACHMENT
+            | wgpu::TextureUsages::COPY_DST;
+
+        images.set_untracked(ANTIC_COLLISIONS_HANDLE, collisions_image);
     }
 }
 

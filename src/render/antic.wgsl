@@ -10,6 +10,11 @@ struct VertexOutput {
     [[location(2), interpolate(flat)]] custom: vec4<f32>;
 };
 
+struct FragmentOutput {
+     [[location(0)]] color: vec4<f32>;
+     [[location(1)]] collisions: vec4<u32>;
+};
+
 let memory_offset: i32 = 7680; // 240 * 32;
 
 let COLPM0: i32 = 0x12;
@@ -87,7 +92,7 @@ fn vertex(vertex: Vertex) -> VertexOutput {
 fn fragment(
     [[location(1)]] uv: vec2<f32>,
     [[location(2), interpolate(flat)]] custom: vec4<f32>
-) -> [[location(0)]] vec4<f32> {
+) -> FragmentOutput {
     let c0 = u32(custom[0]);
     let c1 = u32(custom[1]);
     let video_memory_offset = i32(custom[2]);
@@ -376,6 +381,8 @@ fn fragment(
         u32(0),
     );
 
-    // return palette.palette[get_gtia_reg(scan_line, 0x12 + 6)];
-    return palette.palette[color_reg];
+    var out: FragmentOutput;
+    out.color = palette.palette[color_reg];
+    out.collisions = o_CollisionsTarget;
+    return out;
 }

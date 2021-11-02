@@ -17,7 +17,7 @@ use wgpu::{
     TextureDescriptor,
 };
 
-use crate::ANTIC_IMAGE_HANDLE;
+use crate::{ANTIC_COLLISIONS_HANDLE, ANTIC_IMAGE_HANDLE};
 pub struct AnticPhase {
     pub pipeline: CachedPipelineId,
     pub entity: Entity,
@@ -41,6 +41,7 @@ impl PhaseItem for AnticPhase {
 pub struct AnticPassNode {
     query: QueryState<(&'static RenderPhase<AnticPhase>,)>,
     texture_view: Option<TextureView>,
+    collisions_texture_view: Option<TextureView>,
 }
 
 impl AnticPassNode {
@@ -48,6 +49,7 @@ impl AnticPassNode {
         Self {
             query: QueryState::new(world),
             texture_view: None,
+            collisions_texture_view: None,
         }
     }
 }
@@ -69,6 +71,12 @@ impl Node for AnticPassNode {
         ) {
             self.texture_view = Some(image.texture_view.clone());
         }
+        if let (None, Some(image)) = (
+            &self.collisions_texture_view,
+            render_images.get(&ANTIC_COLLISIONS_HANDLE.typed()),
+        ) {
+            self.collisions_texture_view = Some(image.texture_view.clone());
+        }
     }
 
     fn run(
@@ -77,23 +85,35 @@ impl Node for AnticPassNode {
         render_context: &mut bevy::render2::renderer::RenderContext,
         world: &World,
     ) -> Result<(), bevy::render2::render_graph::NodeRunError> {
-        let texture_view = match &self.texture_view {
-            Some(texture_view) => texture_view,
-            None => return Ok(()),
+        let (texture_view, collisions_texture_view) = match (&self.texture_view, &self.collisions_texture_view) {
+            (Some(texture_view), Some(collisions_texture_view)) => {
+                (texture_view, collisions_texture_view)
+            }
+            _ => return Ok(()),
         };
         let clear_color = Color::rgba(0.0, 0.0, 0.0, 0.0);
         let render_phase = world.get_resource::<RenderPhase<AnticPhase>>().unwrap();
 
         let pass_descriptor = RenderPassDescriptor {
             label: Some("main_pass_3d"),
-            color_attachments: &[RenderPassColorAttachment {
-                view: texture_view,
-                resolve_target: None,
-                ops: Operations {
-                    load: LoadOp::Clear(clear_color.into()),
-                    store: true,
+            color_attachments: &[
+                RenderPassColorAttachment {
+                    view: texture_view,
+                    resolve_target: None,
+                    ops: Operations {
+                        load: LoadOp::Clear(clear_color.into()),
+                        store: true,
+                    },
                 },
-            }],
+                RenderPassColorAttachment {
+                    view: collisions_texture_view,
+                    resolve_target: None,
+                    ops: Operations {
+                        load: LoadOp::Clear(clear_color.into()),
+                        store: true,
+                    },
+                },
+            ],
             depth_stencil_attachment: None,
         };
 

@@ -256,18 +256,11 @@ impl SpecializedPipeline for AnticPipeline {
                 entry_point: "fragment".into(),
                 targets: vec![ColorTargetState {
                     format: TextureFormat::Rgba8UnormSrgb,
-                    blend: Some(BlendState {
-                        color: BlendComponent {
-                            src_factor: BlendFactor::SrcAlpha,
-                            dst_factor: BlendFactor::OneMinusSrcAlpha,
-                            operation: BlendOperation::Add,
-                        },
-                        alpha: BlendComponent {
-                            src_factor: BlendFactor::One,
-                            dst_factor: BlendFactor::One,
-                            operation: BlendOperation::Add,
-                        },
-                    }),
+                    blend: None,
+                    write_mask: ColorWrites::ALL,
+                }, ColorTargetState {
+                    format: TextureFormat::Rg32Uint,
+                    blend: None,
                     write_mask: ColorWrites::ALL,
                 }],
             }),
