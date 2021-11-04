@@ -5,13 +5,12 @@ use bevy::{
     prelude::{App, Assets, Handle, Transform},
     render2::{
         camera::OrthographicCameraBundle,
-        mesh::{shape, Mesh},
         view::Msaa,
     },
     window::WindowDescriptor,
     PipelinedDefaultPlugins,
 };
-use bevy_atari_antic::{atari_data::AnticData, GTIARegs, ANTIC_IMAGE_HANDLE};
+use bevy_atari_antic::{AnticData, GTIARegs, ANTIC_IMAGE_HANDLE};
 use bevy_atari_antic::{AtariAnticPlugin, ModeLineDescr};
 
 use bevy::sprite2::{PipelinedSpriteBundle, Sprite};
@@ -31,7 +30,7 @@ fn main() {
         if let Ok(Some(log_filter)) = local_storage.get_item("log") {
             app.insert_resource(bevy::log::LogSettings {
                 filter: log_filter,
-                level: bevy::utils::tracing::Level::TRACE,
+                level: bevy::utils::tracing::Level::INFO,
             });
         }
     }
@@ -55,6 +54,7 @@ fn main() {
     app.run();
 }
 
+#[allow(dead_code)]
 fn quit_after_few_frames(mut cnt: Local<u32>, mut app_exit_events: EventWriter<AppExit>) {
     *cnt += 1;
     if *cnt > 5 {
@@ -79,7 +79,6 @@ fn update(mut atari_data_assets: ResMut<Assets<AnticData>>, query: Query<&Handle
 fn setup(
     mut commands: Commands,
     mut atari_data_assets: ResMut<Assets<AnticData>>,
-    mut meshes: ResMut<Assets<Mesh>>,
 ) {
     let mut atari_data = AnticData::default();
 

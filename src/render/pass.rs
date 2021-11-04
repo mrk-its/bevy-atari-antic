@@ -145,7 +145,7 @@ impl Node for AnticPassNode {
                 );
             }
         }
-        for item in render_phase.items.iter() {
+        for _item in render_phase.items.iter() {
             render_context.command_encoder.copy_texture_to_buffer(
                 collisions_texture.as_image_copy(),
                 wgpu::ImageCopyBuffer {

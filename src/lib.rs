@@ -1,41 +1,41 @@
-use std::sync::Arc;
-
-use bevy::render2::renderer::RenderDevice;
 use futures_lite::future;
-pub mod render;
-use bevy::prelude::{HandleUntyped, Res};
-use bevy::reflect::TypeUuid;
+use parking_lot::RwLock;
+use std::sync::Arc;
+use wgpu::BufferDescriptor;
 
-use bevy::render2::render_graph::RenderGraph;
-use bevy::render2::render_phase::{DrawFunctions, RenderPhase};
 use bevy::{
-    prelude::{info, AddAsset, App, Assets, Handle, Plugin},
+    prelude::{info, AddAsset, App, Assets, Handle, HandleUntyped, Plugin},
+    reflect::TypeUuid,
     render2::{
         camera::{CameraProjection, OrthographicProjection},
         render_asset::RenderAssetPlugin,
         render_component::ExtractComponentPlugin,
-        render_phase::AddRenderCommand,
+        render_graph::RenderGraph,
+        render_phase::{AddRenderCommand, DrawFunctions, RenderPhase},
         render_resource::*,
+        renderer::RenderDevice,
         texture::Image,
         RenderApp, RenderStage,
     },
 };
 
-pub const ANTIC_SHADER_HANDLE: HandleUntyped =
+mod atari_data;
+mod render;
+mod resources;
+use render::pass::{AnticPassNode, AnticPhase};
+
+
+const ANTIC_SHADER_HANDLE: HandleUntyped =
     HandleUntyped::weak_from_u64(Shader::TYPE_UUID, 4805239651767799999);
+const ANTIC_COLLISIONS_HANDLE: HandleUntyped =
+    HandleUntyped::weak_from_u64(Image::TYPE_UUID, 4805239651767799989);
+
+// Public Interface
 
 pub const ANTIC_IMAGE_HANDLE: HandleUntyped =
     HandleUntyped::weak_from_u64(Image::TYPE_UUID, 4805239651767799988);
-pub const ANTIC_COLLISIONS_HANDLE: HandleUntyped =
-    HandleUntyped::weak_from_u64(Image::TYPE_UUID, 4805239651767799989);
 
-pub mod atari_data;
-pub mod resources;
-use parking_lot::RwLock;
-use render::pass::{AnticPassNode, AnticPhase};
-
-pub use atari_data::{AnticData, AnticDataInner};
-use wgpu::BufferDescriptor;
+pub use atari_data::AnticData;
 
 pub struct AtariAnticPlugin;
 
@@ -143,11 +143,10 @@ impl ModeLineDescr {
     }
 }
 
-
 #[derive(Clone)]
 pub struct CollisionsData {
     pub data: Arc<RwLock<[u64; 240]>>,
-    pub buffer: Buffer,
+    pub(crate) buffer: Buffer,
 }
 
 impl CollisionsData {
