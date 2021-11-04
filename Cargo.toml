@@ -13,6 +13,7 @@ wgpu = { version = "0.11", features = ["spirv", "webgl"] }
 parking_lot = "0.11"
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 web-sys = { version = "0.3", features = ["Storage"]}
+futures-lite = "1.11.3"
 
 [[example]]
 name = "atari_antic"
@@ -25,3 +26,4 @@ path = "examples/atari_antic.rs"
 
 [patch.crates-io]
 wgpu = {path="../../wgpu/wgpu/"}
+glow = {path="../../glow"}

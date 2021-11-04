@@ -1,11 +1,14 @@
+use std::sync::Arc;
+
+use bevy::render2::renderer::RenderDevice;
+use futures_lite::future;
 pub mod render;
-use bevy::prelude::HandleUntyped;
+use bevy::prelude::{HandleUntyped, Res};
 use bevy::reflect::TypeUuid;
 
 use bevy::render2::render_graph::RenderGraph;
 use bevy::render2::render_phase::{DrawFunctions, RenderPhase};
 use bevy::{
-    core_pipeline::Transparent3d,
     prelude::{info, AddAsset, App, Assets, Handle, Plugin},
     render2::{
         camera::{CameraProjection, OrthographicProjection},
@@ -28,9 +31,11 @@ pub const ANTIC_COLLISIONS_HANDLE: HandleUntyped =
 
 pub mod atari_data;
 pub mod resources;
+use parking_lot::RwLock;
 use render::pass::{AnticPassNode, AnticPhase};
 
 pub use atari_data::{AnticData, AnticDataInner};
+use wgpu::BufferDescriptor;
 
 pub struct AtariAnticPlugin;
 
@@ -41,12 +46,16 @@ impl Plugin for AtariAnticPlugin {
         let projection_matrix = projection.get_projection_matrix();
         info!("projection matrix: {:?}", projection_matrix);
 
+        let render_device = app.world.get_resource::<RenderDevice>().unwrap();
+        let collisions_data = CollisionsData::new(&render_device);
+
         let mut shaders = app.world.get_resource_mut::<Assets<Shader>>().unwrap();
         let antic_shader = Shader::from_wgsl(include_str!("render/antic.wgsl"));
         shaders.set_untracked(ANTIC_SHADER_HANDLE, antic_shader);
 
         app.add_asset::<AnticData>()
             // .add_asset::<AnticMesh>()
+            .insert_resource(collisions_data.clone())
             .add_plugin(ExtractComponentPlugin::<Handle<AnticData>>::default())
             .add_plugin(RenderAssetPlugin::<AnticData>::default());
 
@@ -60,7 +69,7 @@ impl Plugin for AtariAnticPlugin {
             .add_render_command::<AnticPhase, render::SetAnticPipeline>()
             .add_system_to_stage(RenderStage::Queue, render::queue_meshes);
 
-        let antic_node = AnticPassNode::new(&mut render_app.world);
+        let antic_node = AnticPassNode::new(collisions_data);
         let mut graph = render_app.world.get_resource_mut::<RenderGraph>().unwrap();
         graph.add_node("antic_node", antic_node);
         graph
@@ -98,7 +107,8 @@ impl Plugin for AtariAnticPlugin {
         );
         collisions_image.texture_descriptor.usage = wgpu::TextureUsages::TEXTURE_BINDING
             | wgpu::TextureUsages::RENDER_ATTACHMENT
-            | wgpu::TextureUsages::COPY_DST;
+            | wgpu::TextureUsages::COPY_DST
+            | wgpu::TextureUsages::COPY_SRC;
 
         images.set_untracked(ANTIC_COLLISIONS_HANDLE, collisions_image);
     }
@@ -130,6 +140,53 @@ impl ModeLineDescr {
             6..=7 => 512,
             _ => 0,
         }
+    }
+}
+
+
+#[derive(Clone)]
+pub struct CollisionsData {
+    pub data: Arc<RwLock<[u64; 240]>>,
+    pub buffer: Buffer,
+}
+
+impl CollisionsData {
+    fn new(render_device: &RenderDevice) -> Self {
+        let buffer = render_device.create_buffer(&BufferDescriptor {
+            label: Some("atari collisions buffer"),
+            usage: BufferUsages::COPY_DST | BufferUsages::MAP_READ,
+            size: 384 * 240 * 8,
+            mapped_at_creation: false,
+        });
+        Self {
+            data: Arc::new(RwLock::new([0; 240])),
+            buffer,
+        }
+    }
+    fn read_collisions(&self, render_device: &RenderDevice) {
+        let buffer = &self.buffer;
+        let slice = buffer.slice(..);
+        let map_future = slice.map_async(wgpu::MapMode::Read);
+        render_device.poll(wgpu::Maintain::Wait);
+        future::block_on(map_future).unwrap();
+        {
+            let buffer_view = slice.get_mapped_range();
+            let data: &[u8] = &buffer_view;
+            let data =
+                unsafe { std::slice::from_raw_parts(data.as_ptr() as *const u64, data.len() / 8) };
+            let guard = &mut self.data.write();
+            let dest = guard.as_mut();
+
+            let mut index = 0;
+            for y in 0..240 {
+                dest[y] = 0;
+                for _ in 0..384 {
+                    dest[y] |= data[index];
+                    index += 1;
+                }
+            }
+        }
+        buffer.unmap();
     }
 }
 

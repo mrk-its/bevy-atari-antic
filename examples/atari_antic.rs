@@ -31,7 +31,7 @@ fn main() {
         if let Ok(Some(log_filter)) = local_storage.get_item("log") {
             app.insert_resource(bevy::log::LogSettings {
                 filter: log_filter,
-                level: bevy::utils::tracing::Level::INFO,
+                level: bevy::utils::tracing::Level::TRACE,
             });
         }
     }

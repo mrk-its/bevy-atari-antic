@@ -3,13 +3,12 @@ use bevy::{
         prelude::*,
         system::{lifetimeless::*, SystemParamItem},
     },
-    prelude::{info, Handle},
+    prelude::Handle,
     render2::{
         render_asset::{PrepareAssetError, RenderAsset, RenderAssets},
         render_phase::{DrawFunctions, RenderCommand, RenderPhase, TrackedRenderPass},
         render_resource::*,
         renderer::{RenderDevice, RenderQueue},
-        texture::BevyDefault,
     },
 };
 pub mod pass;
@@ -28,6 +27,7 @@ pub struct GpuAnticDataInner {
     palette_buffer: Buffer,
     index_buffer: Buffer,
     vertex_buffer: Buffer,
+    // collisions_buffer: Buffer,
     texture: Texture,
     _texture_view: TextureView,
     bind_group: BindGroup,
@@ -133,17 +133,16 @@ impl AnticData {
         let vertex_buffer = render_device.create_buffer(&BufferDescriptor {
             label: Some("atari_vertex_buffer"),
             usage: BufferUsages::VERTEX | BufferUsages::COPY_DST,
-            size: 1000000,
+            size: 1000000, // TODO
             mapped_at_creation: false,
         });
 
         let index_buffer = render_device.create_buffer(&BufferDescriptor {
             label: Some("atari_index_buffer"),
             usage: BufferUsages::INDEX | BufferUsages::COPY_DST,
-            size: 1000000,
+            size: 1000000, // TODO
             mapped_at_creation: false,
         });
-
         let bind_group = render_device.create_bind_group(&BindGroupDescriptor {
             entries: &[
                 BindGroupEntry {
@@ -163,6 +162,7 @@ impl AnticData {
             palette_buffer,
             index_buffer,
             vertex_buffer,
+            // collisions_buffer,
             texture,
             _texture_view,
             bind_group,
@@ -254,15 +254,18 @@ impl SpecializedPipeline for AnticPipeline {
                 shader: ANTIC_SHADER_HANDLE.typed::<Shader>(),
                 shader_defs: vec![],
                 entry_point: "fragment".into(),
-                targets: vec![ColorTargetState {
-                    format: TextureFormat::Rgba8UnormSrgb,
-                    blend: None,
-                    write_mask: ColorWrites::ALL,
-                }, ColorTargetState {
-                    format: TextureFormat::Rg32Uint,
-                    blend: None,
-                    write_mask: ColorWrites::ALL,
-                }],
+                targets: vec![
+                    ColorTargetState {
+                        format: TextureFormat::Rgba8UnormSrgb,
+                        blend: None,
+                        write_mask: ColorWrites::ALL,
+                    },
+                    ColorTargetState {
+                        format: TextureFormat::Rg32Uint,
+                        blend: None,
+                        write_mask: ColorWrites::ALL,
+                    },
+                ],
             }),
             depth_stencil: None,
             layout: Some(vec![
@@ -291,20 +294,21 @@ pub fn queue_meshes(
     mut render_phase: ResMut<RenderPhase<AnticPhase>>,
     mut pipelines: ResMut<SpecializedPipelines<AnticPipeline>>,
     mut pipeline_cache: ResMut<RenderPipelineCache>,
-    atari_data: Query<Entity, With<Handle<AnticData>>>,
+    atari_data: Query<(Entity, &Handle<AnticData>)>,
 ) {
     let draw_function = transparent_3d_draw_functions
         .read()
         .get_id::<SetAnticPipeline>()
         .unwrap();
     render_phase.items.clear();
-    for entity in atari_data.iter() {
+    for (entity, antic_data_handle) in atari_data.iter() {
         let key = AnticPipelineKey;
         let pipeline = pipelines.specialize(&mut pipeline_cache, &antic_pipeline, key);
         render_phase.add(AnticPhase {
             pipeline,
             entity,
             draw_function,
+            antic_data_handle: antic_data_handle.clone(),
         });
     }
 }
