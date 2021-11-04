@@ -25,5 +25,5 @@ path = "examples/atari_antic.rs"
 # codegen-units = 1
 
 [patch.crates-io]
-wgpu = {path="../../wgpu/wgpu/"}
-glow = {path="../../glow"}
+wgpu = {git="https://github.com/gfx-rs/wgpu", revision="c824c8"}
+glow = {git="https://github.com/mrk-its/glow", branch="read_pixels_array_buffer_view"}
