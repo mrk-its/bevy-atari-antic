@@ -1,0 +1,6 @@
+target
+*.log
+Cargo.lock
+*.html
+web
+.metals
