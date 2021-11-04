@@ -26,10 +26,10 @@ struct Palette {
     palette: array<vec4<f32>, 256>;
 };
 
-[[group(0), binding(0)]]
+[[group(0), binding(1)]]
 var<uniform> palette: Palette;
 
-[[group(0), binding(1)]]
+[[group(0), binding(0)]]
 var memory: texture_2d<u32>;
 
 fn get_gtia_reg(scan_line: i32, k: i32) -> i32 {
@@ -87,6 +87,15 @@ fn vertex(vertex: Vertex) -> VertexOutput {
     out.custom = vertex.custom;
     return out;
 }
+
+[[stage(fragment)]]
+fn collisions_agg_fragment(
+    [[location(1)]] uv: vec2<f32>,
+    [[location(2), interpolate(flat)]] custom: vec4<f32>
+) -> [[location(0)]] vec4<u32> {
+    return vec4<u32>(0x55555555u, 0xaaaaaaaau, 0u, 0u);
+}
+
 
 [[stage(fragment)]]
 fn fragment(

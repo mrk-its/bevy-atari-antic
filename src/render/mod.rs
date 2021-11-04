@@ -13,7 +13,7 @@ use bevy::{
 };
 pub mod pass;
 use crate::resources::AtariPalette;
-use pass::AnticPhase;
+use pass::{AnticPhase, CollisionsAggPhase};
 use std::sync::Arc;
 use wgpu::BufferDescriptor;
 
@@ -29,8 +29,11 @@ pub struct GpuAnticDataInner {
     vertex_buffer: Buffer,
     // collisions_buffer: Buffer,
     texture: Texture,
-    _texture_view: TextureView,
+    texture_view: TextureView,
+    collisions_agg_texture: Texture,
+    collisions_agg_texture_view: TextureView,
     bind_group: BindGroup,
+    collisions_agg_bind_group: BindGroup,
 }
 
 #[derive(Clone)]
@@ -45,6 +48,12 @@ pub const DATA_TEXTURE_SIZE: Extent3d = Extent3d {
     depth_or_array_layers: 1,
 };
 
+pub const COLLISIONS_AGG_TEXTURE_SIZE: Extent3d = Extent3d {
+    width: 384 / 12,
+    height: 240,
+    depth_or_array_layers: 1,
+};
+
 impl RenderAsset for AnticData {
     type ExtractedAsset = AnticData;
     type PreparedAsset = GpuAnticData;
@@ -52,6 +61,7 @@ impl RenderAsset for AnticData {
         SRes<RenderDevice>,
         SRes<RenderQueue>,
         SRes<AnticPipeline>,
+        SRes<CollisionsAggPipeline>,
         SResMut<Option<GpuAnticData>>,
     );
     fn extract_asset(&self) -> Self::ExtractedAsset {
@@ -60,13 +70,13 @@ impl RenderAsset for AnticData {
 
     fn prepare_asset(
         extracted_asset: Self::ExtractedAsset,
-        (render_device, render_queue, custom_pipeline, cache): &mut SystemParamItem<Self::Param>,
+        (render_device, render_queue, pipeline, collisions_agg_pipeline, cache): &mut SystemParamItem<Self::Param>,
     ) -> Result<Self::PreparedAsset, PrepareAssetError<Self::ExtractedAsset>> {
         let inner = extracted_asset.inner.read();
 
         if cache.is_none() {
             cache.replace(GpuAnticData {
-                inner: Self::create_gpu_data(&render_device, &custom_pipeline),
+                inner: Self::create_gpu_data(&render_device, &pipeline, &collisions_agg_pipeline),
                 index_count: 0,
             });
         }
@@ -107,9 +117,11 @@ impl RenderAsset for AnticData {
 impl AnticData {
     fn create_gpu_data(
         render_device: &RenderDevice,
-        custom_pipeline: &AnticPipeline,
+        pipeline: &AnticPipeline,
+        collisions_agg_pipeline: &CollisionsAggPipeline,
     ) -> Arc<GpuAnticDataInner> {
         bevy::prelude::info!("creating atari buffers");
+
         let texture_descriptor = wgpu::TextureDescriptor {
             size: DATA_TEXTURE_SIZE,
             dimension: TextureDimension::D2,
@@ -121,7 +133,22 @@ impl AnticData {
         };
 
         let texture = render_device.create_texture(&texture_descriptor);
-        let _texture_view = texture.create_view(&TextureViewDescriptor::default());
+        let texture_view = texture.create_view(&TextureViewDescriptor::default());
+
+        let collisions_agg_texture_descriptor = wgpu::TextureDescriptor {
+            size: COLLISIONS_AGG_TEXTURE_SIZE,
+            dimension: TextureDimension::D2,
+            format: wgpu::TextureFormat::Rg32Uint,
+            label: Some("collisions_agg_data_texture"),
+            mip_level_count: 1,
+            sample_count: 1,
+            usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_SRC,
+        };
+
+        let collisions_agg_texture =
+            render_device.create_texture(&collisions_agg_texture_descriptor);
+        let collisions_agg_texture_view =
+            collisions_agg_texture.create_view(&TextureViewDescriptor::default());
 
         let palette_buffer = render_device.create_buffer(&BufferDescriptor {
             label: None,
@@ -147,43 +174,68 @@ impl AnticData {
             entries: &[
                 BindGroupEntry {
                     binding: 0,
-                    resource: palette_buffer.as_entire_binding(),
+                    resource: BindingResource::TextureView(&texture_view),
                 },
                 BindGroupEntry {
                     binding: 1,
-                    resource: BindingResource::TextureView(&_texture_view),
+                    resource: palette_buffer.as_entire_binding(),
                 },
             ],
-            label: None,
-            layout: &custom_pipeline.atari_data_layout,
+            label: Some("atari_bind_group"),
+            layout: &pipeline.data_layout,
+        });
+
+        let collisions_agg_bind_group = render_device.create_bind_group(&BindGroupDescriptor {
+            entries: &[BindGroupEntry {
+                binding: 0,
+                resource: BindingResource::TextureView(&collisions_agg_texture_view),
+            }],
+            label: Some("collisions_agg_bind_group"),
+            layout: &collisions_agg_pipeline.data_layout,
         });
 
         Arc::new(GpuAnticDataInner {
             palette_buffer,
             index_buffer,
             vertex_buffer,
-            // collisions_buffer,
             texture,
-            _texture_view,
+            texture_view,
+            collisions_agg_texture,
+            collisions_agg_texture_view,
             bind_group,
+            collisions_agg_bind_group,
         })
     }
 }
 
 pub struct AnticPipeline {
-    atari_data_layout: BindGroupLayout,
+    data_layout: BindGroupLayout,
 }
 
-// TODO: this pattern for initializing the shaders / pipeline isn't ideal. this should be handled by the asset system
+#[derive(Clone)]
+pub struct CollisionsAggPipeline {
+    data_layout: BindGroupLayout,
+}
+
 impl FromWorld for AnticPipeline {
     fn from_world(world: &mut World) -> Self {
         let render_device = world.get_resource::<RenderDevice>().unwrap();
 
-        let atari_data_layout =
+        let data_layout =
             render_device.create_bind_group_layout(&BindGroupLayoutDescriptor {
                 entries: &[
                     BindGroupLayoutEntry {
                         binding: 0,
+                        visibility: ShaderStages::FRAGMENT,
+                        ty: BindingType::Texture {
+                            view_dimension: TextureViewDimension::D2,
+                            sample_type: wgpu::TextureSampleType::Uint,
+                            multisampled: false,
+                        },
+                        count: None,
+                    },
+                    BindGroupLayoutEntry {
+                        binding: 1,
                         visibility: ShaderStages::FRAGMENT,
                         ty: BindingType::Buffer {
                             ty: BufferBindingType::Uniform,
@@ -194,21 +246,32 @@ impl FromWorld for AnticPipeline {
                         },
                         count: None,
                     },
-                    BindGroupLayoutEntry {
-                        binding: 1,
-                        visibility: ShaderStages::FRAGMENT,
-                        ty: BindingType::Texture {
-                            view_dimension: TextureViewDimension::D2,
-                            sample_type: wgpu::TextureSampleType::Uint,
-                            multisampled: false,
-                        },
-                        count: None,
-                    },
                 ],
                 label: Some("atari_data_layout"),
             });
 
-        AnticPipeline { atari_data_layout }
+        AnticPipeline { data_layout }
+    }
+}
+impl FromWorld for CollisionsAggPipeline {
+    fn from_world(world: &mut World) -> Self {
+        let render_device = world.get_resource::<RenderDevice>().unwrap();
+
+        let data_layout = render_device.create_bind_group_layout(&BindGroupLayoutDescriptor {
+            entries: &[BindGroupLayoutEntry {
+                binding: 0,
+                visibility: ShaderStages::FRAGMENT,
+                ty: BindingType::Texture {
+                    view_dimension: TextureViewDimension::D2,
+                    sample_type: wgpu::TextureSampleType::Uint,
+                    multisampled: false,
+                },
+                count: None,
+            }],
+            label: Some("colissions_agg_data_layout"),
+        });
+
+        CollisionsAggPipeline { data_layout }
     }
 }
 
@@ -218,7 +281,7 @@ pub struct AnticPipelineKey;
 impl SpecializedPipeline for AnticPipeline {
     type Key = AnticPipelineKey;
 
-    fn specialize(&self, _key: Self::Key) -> RenderPipelineDescriptor {
+    fn specialize(&self, key: Self::Key) -> RenderPipelineDescriptor {
         RenderPipelineDescriptor {
             label: None,
             vertex: VertexState {
@@ -267,12 +330,72 @@ impl SpecializedPipeline for AnticPipeline {
                     },
                 ],
             }),
+            layout: Some(vec![self.data_layout.clone()]),
             depth_stencil: None,
-            layout: Some(vec![
-                // self.view_layout.clone(),
-                self.atari_data_layout.clone(),
-                // self.mesh_layout.clone(),
-            ]),
+            multisample: MultisampleState::default(),
+            primitive: PrimitiveState {
+                topology: PrimitiveTopology::TriangleList,
+                strip_index_format: None,
+                front_face: FrontFace::Ccw,
+                cull_mode: None,
+                polygon_mode: PolygonMode::Fill,
+                clamp_depth: false,
+                conservative: false,
+            },
+        }
+    }
+}
+
+#[derive(PartialEq, Eq, Hash, Clone)]
+pub struct CollisionsAggPipelineKey;
+
+impl SpecializedPipeline for CollisionsAggPipeline {
+    type Key = CollisionsAggPipelineKey;
+
+    fn specialize(&self, key: Self::Key) -> RenderPipelineDescriptor {
+        RenderPipelineDescriptor {
+            label: None,
+            vertex: VertexState {
+                shader_defs: vec![],
+                shader: ANTIC_SHADER_HANDLE.typed::<Shader>(),
+                buffers: vec![VertexBufferLayout {
+                    array_stride: 36,
+                    step_mode: VertexStepMode::Vertex,
+                    attributes: vec![
+                        // Position (GOTCHA! Vertex_Position isn't first in the buffer due to how Mesh sorts attributes (alphabetically))
+                        VertexAttribute {
+                            format: VertexFormat::Float32x3,
+                            offset: 0,
+                            shader_location: 0,
+                        },
+                        // Uv
+                        VertexAttribute {
+                            format: VertexFormat::Float32x2,
+                            offset: 12,
+                            shader_location: 1,
+                        },
+                        // RCustom
+                        VertexAttribute {
+                            format: VertexFormat::Float32x4,
+                            offset: 20,
+                            shader_location: 2,
+                        },
+                    ],
+                }],
+                entry_point: "vertex".into(),
+            },
+            fragment: Some(FragmentState {
+                shader: ANTIC_SHADER_HANDLE.typed::<Shader>(),
+                shader_defs: vec![],
+                entry_point: "collisions_agg_fragment".into(),
+                targets: vec![ColorTargetState {
+                    format: TextureFormat::Rg32Uint,
+                    blend: None,
+                    write_mask: ColorWrites::ALL,
+                }],
+            }),
+            layout: Some(vec![self.data_layout.clone()]),
+            depth_stencil: None,
             multisample: MultisampleState::default(),
             primitive: PrimitiveState {
                 topology: PrimitiveTopology::TriangleList,
@@ -289,25 +412,45 @@ impl SpecializedPipeline for AnticPipeline {
 
 #[allow(clippy::too_many_arguments)]
 pub fn queue_meshes(
-    transparent_3d_draw_functions: Res<DrawFunctions<AnticPhase>>,
+    draw_functions: Res<DrawFunctions<AnticPhase>>,
+    collisions_agg_draw_functions: Res<DrawFunctions<CollisionsAggPhase>>,
     antic_pipeline: Res<AnticPipeline>,
+    collisions_agg_pipeline: Res<CollisionsAggPipeline>,
     mut render_phase: ResMut<RenderPhase<AnticPhase>>,
+    mut collisions_agg_render_phase: ResMut<RenderPhase<CollisionsAggPhase>>,
     mut pipelines: ResMut<SpecializedPipelines<AnticPipeline>>,
+    mut collision_agg_pipelines: ResMut<SpecializedPipelines<CollisionsAggPipeline>>,
     mut pipeline_cache: ResMut<RenderPipelineCache>,
     atari_data: Query<(Entity, &Handle<AnticData>)>,
 ) {
-    let draw_function = transparent_3d_draw_functions
+    let draw_function = draw_functions
         .read()
         .get_id::<SetAnticPipeline>()
         .unwrap();
+    let collisions_agg_draw_function = collisions_agg_draw_functions
+        .read()
+        .get_id::<SetCollisionsAggPipeline>()
+        .unwrap();
     render_phase.items.clear();
+    collisions_agg_render_phase.items.clear();
+
     for (entity, antic_data_handle) in atari_data.iter() {
-        let key = AnticPipelineKey;
-        let pipeline = pipelines.specialize(&mut pipeline_cache, &antic_pipeline, key);
+        let pipeline = pipelines.specialize(&mut pipeline_cache, &antic_pipeline, AnticPipelineKey);
+        let collisions_agg_pipeline = collision_agg_pipelines.specialize(
+            &mut pipeline_cache,
+            &collisions_agg_pipeline,
+            CollisionsAggPipelineKey,
+        );
         render_phase.add(AnticPhase {
             pipeline,
             entity,
             draw_function,
+            antic_data_handle: antic_data_handle.clone(),
+        });
+        collisions_agg_render_phase.add(CollisionsAggPhase {
+            pipeline: collisions_agg_pipeline,
+            entity,
+            draw_function: collisions_agg_draw_function,
             antic_data_handle: antic_data_handle.clone(),
         });
     }
@@ -336,6 +479,43 @@ impl RenderCommand<AnticPhase> for SetAnticPipeline {
         if let Some(pipeline) = pipeline_cache.into_inner().get(item.pipeline) {
             pass.set_render_pipeline(pipeline);
             pass.set_bind_group(0, &gpu_atari_data.inner.bind_group, &[]);
+            pass.set_vertex_buffer(0, gpu_atari_data.inner.vertex_buffer.slice(..));
+            pass.set_index_buffer(
+                gpu_atari_data
+                    .inner
+                    .index_buffer
+                    .slice(0..(index_count * 2) as u64),
+                0,
+                wgpu::IndexFormat::Uint16,
+            );
+            pass.draw_indexed(0..index_count, 0, 0..1);
+        }
+    }
+}
+
+pub struct SetCollisionsAggPipeline;
+impl RenderCommand<CollisionsAggPhase> for SetCollisionsAggPipeline {
+    type Param = (
+        SRes<RenderPipelineCache>,
+        SRes<RenderAssets<AnticData>>,
+        SQuery<Read<Handle<AnticData>>>,
+    );
+    fn render<'w>(
+        _view: Entity,
+        item: &CollisionsAggPhase,
+        (pipeline_cache, atari_data_assets, query): SystemParamItem<'w, '_, Self::Param>,
+        pass: &mut TrackedRenderPass<'w>,
+    ) {
+        let antic_data_handle = query.get(item.entity).unwrap();
+        let gpu_atari_data = atari_data_assets
+            .into_inner()
+            .get(antic_data_handle)
+            .unwrap();
+
+        let index_count = gpu_atari_data.index_count;
+        if let Some(pipeline) = pipeline_cache.into_inner().get(item.pipeline) {
+            pass.set_render_pipeline(pipeline);
+            pass.set_bind_group(0, &gpu_atari_data.inner.collisions_agg_bind_group, &[]);
             pass.set_vertex_buffer(0, gpu_atari_data.inner.vertex_buffer.slice(..));
             pass.set_index_buffer(
                 gpu_atari_data

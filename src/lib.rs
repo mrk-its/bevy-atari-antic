@@ -22,13 +22,15 @@ use bevy::{
 mod atari_data;
 mod render;
 mod resources;
-use render::pass::{AnticPassNode, AnticPhase};
+use render::pass::{AnticPassNode, AnticPhase, CollisionsAggPhase};
 
 
 const ANTIC_SHADER_HANDLE: HandleUntyped =
     HandleUntyped::weak_from_u64(Shader::TYPE_UUID, 4805239651767799999);
 const ANTIC_COLLISIONS_HANDLE: HandleUntyped =
     HandleUntyped::weak_from_u64(Image::TYPE_UUID, 4805239651767799989);
+const ANTIC_COLLISIONS_AGG_HANDLE: HandleUntyped =
+    HandleUntyped::weak_from_u64(Image::TYPE_UUID, 4805239651767799990);
 
 // Public Interface
 
@@ -63,10 +65,15 @@ impl Plugin for AtariAnticPlugin {
         render_app
             .init_resource::<DrawFunctions<AnticPhase>>()
             .init_resource::<RenderPhase<AnticPhase>>()
+            .init_resource::<DrawFunctions<CollisionsAggPhase>>()
+            .init_resource::<RenderPhase<CollisionsAggPhase>>()
             .init_resource::<render::AnticPipeline>()
+            .init_resource::<render::CollisionsAggPipeline>()
             .init_resource::<Option<render::GpuAnticData>>()
             .init_resource::<SpecializedPipelines<render::AnticPipeline>>()
+            .init_resource::<SpecializedPipelines<render::CollisionsAggPipeline>>()
             .add_render_command::<AnticPhase, render::SetAnticPipeline>()
+            .add_render_command::<CollisionsAggPhase, render::SetCollisionsAggPipeline>()
             .add_system_to_stage(RenderStage::Queue, render::queue_meshes);
 
         let antic_node = AnticPassNode::new(collisions_data);
@@ -111,6 +118,21 @@ impl Plugin for AtariAnticPlugin {
             | wgpu::TextureUsages::COPY_SRC;
 
         images.set_untracked(ANTIC_COLLISIONS_HANDLE, collisions_image);
+
+        let size = (render::COLLISIONS_AGG_TEXTURE_SIZE.width * render::COLLISIONS_AGG_TEXTURE_SIZE.height * 4 * 2) as usize;
+
+        let mut collisions_agg_image = Image::new(
+            render::COLLISIONS_AGG_TEXTURE_SIZE,
+            wgpu::TextureDimension::D2,
+            vec![0; size],
+            wgpu::TextureFormat::Rg32Uint,
+        );
+        collisions_agg_image.texture_descriptor.usage = wgpu::TextureUsages::TEXTURE_BINDING
+            | wgpu::TextureUsages::RENDER_ATTACHMENT
+            | wgpu::TextureUsages::COPY_DST
+            | wgpu::TextureUsages::COPY_SRC;
+
+        images.set_untracked(ANTIC_COLLISIONS_AGG_HANDLE, collisions_agg_image);
     }
 }
 
