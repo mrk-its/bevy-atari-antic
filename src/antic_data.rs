@@ -6,7 +6,7 @@ use bevy::render2::mesh::{Indices, Mesh};
 use parking_lot::RwLock;
 use wgpu::PrimitiveTopology;
 
-use super::resources::AtariPalette;
+use super::palette::AtariPalette;
 
 #[derive(Default)]
 pub struct AnticDataInner {

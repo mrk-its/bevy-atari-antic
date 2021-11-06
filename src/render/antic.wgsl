@@ -15,7 +15,7 @@ struct FragmentOutput {
      [[location(1)]] collisions: vec4<u32>;
 };
 
-let memory_offset: i32 = 7680; // 240 * 32;
+let memory_offset: i32 = 7680; // memory reserved for gtia regs: 240 * 32;
 
 let COLPM0: i32 = 0x12;
 let COLPF0: i32 = 0x16;

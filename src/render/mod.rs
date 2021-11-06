@@ -12,12 +12,12 @@ use bevy::{
     },
 };
 pub mod pass;
-use crate::resources::AtariPalette;
+use crate::palette::AtariPalette;
 use pass::{AnticPhase, CollisionsAggPhase};
 use std::sync::Arc;
 use wgpu::BufferDescriptor;
 
-pub use crate::atari_data::{AnticData, AnticDataInner};
+pub use crate::antic_data::{AnticData, AnticDataInner};
 use crate::ANTIC_SHADER_HANDLE;
 
 use crevice::std140::{AsStd140, Std140};

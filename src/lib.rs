@@ -19,9 +19,9 @@ use bevy::{
     },
 };
 
-mod atari_data;
+mod antic_data;
 mod render;
-mod resources;
+mod palette;
 use render::{
     pass::{AnticPassNode, AnticPhase, CollisionsAggPhase},
     COLLISIONS_AGG_TEXTURE_SIZE,
@@ -38,7 +38,7 @@ pub const ANTIC_IMAGE_HANDLE: HandleUntyped =
 pub const ANTIC_DATA_HANDLE: HandleUntyped =
     HandleUntyped::weak_from_u64(AnticData::TYPE_UUID, 11501023916499139379);
 
-pub use atari_data::AnticData;
+pub use antic_data::AnticData;
 
 use crate::render::pass::{AssetOutputNode, CollisionsAggNode};
 
