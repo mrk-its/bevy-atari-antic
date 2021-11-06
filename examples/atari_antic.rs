@@ -84,7 +84,7 @@ fn update(
 }
 
 fn setup(mut commands: Commands, mut atari_data_assets: ResMut<Assets<AnticData>>) {
-    let mut atari_data = AnticData::default();
+    let atari_data = atari_data_assets.get_mut(ANTIC_DATA_HANDLE.typed::<AnticData>()).unwrap();
 
     let coffs = atari_data.reserve_antic_memory(1024, &mut |data| {
         data.copy_from_slice(include_bytes!("charset.dat"))
@@ -230,7 +230,6 @@ fn setup(mut commands: Commands, mut atari_data_assets: ResMut<Assets<AnticData>
         )
     }
 
-    atari_data_assets.set_untracked(ANTIC_DATA_HANDLE, atari_data);
 
     let handle: Handle<AnticData> = ANTIC_DATA_HANDLE.typed();
 

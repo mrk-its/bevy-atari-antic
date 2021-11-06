@@ -64,6 +64,9 @@ impl Plugin for AtariAnticPlugin {
             .add_plugin(ExtractComponentPlugin::<Handle<AnticData>>::default())
             .add_plugin(RenderAssetPlugin::<AnticData>::default());
 
+        let mut atari_data_assets = app.world.get_resource_mut::<Assets<AnticData>>().unwrap();
+        atari_data_assets.set_untracked(ANTIC_DATA_HANDLE, AnticData::default());
+
         let render_app = app.sub_app(RenderApp);
         render_app
             .init_resource::<DrawFunctions<AnticPhase>>()
