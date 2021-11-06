@@ -541,6 +541,7 @@ impl RenderCommand<CollisionsAggPhase> for SetCollisionsAggPipeline {
         if let Some(pipeline) = pipeline_cache.into_inner().get(item.pipeline) {
             pass.set_render_pipeline(pipeline);
             pass.set_bind_group(0, &gpu_atari_data.inner.collisions_agg_bind_group, &[]);
+            // TODO - create separate, simple mesh for collision
             pass.set_vertex_buffer(0, gpu_atari_data.inner.vertex_buffer.slice(..));
             pass.set_index_buffer(
                 gpu_atari_data

@@ -93,7 +93,16 @@ fn collisions_agg_fragment(
     [[location(1)]] uv: vec2<f32>,
     [[location(2), interpolate(flat)]] custom: vec4<f32>
 ) -> [[location(0)]] vec4<u32> {
-    return vec4<u32>(0x55555555u, 0xaaaaaaaau, 0u, 0u);
+    let TEXTURE_WIDTH = 32;
+    let STRIP_WIDTH = 384 / TEXTURE_WIDTH;
+    let px = i32(uv.x * f32(TEXTURE_WIDTH)) * STRIP_WIDTH;
+    let py = i32(uv.y * 240.0);
+
+    var v = vec4<u32>(0u, 0u, 0u, 0u);
+    for(var x = 0; x < STRIP_WIDTH; x = x + 1) {
+        v = v | textureLoad(memory, vec2<i32>(px + x, py), 0);
+    }
+    return v;
 }
 
 
