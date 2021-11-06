@@ -4,7 +4,7 @@ use bevy::math::vec2;
 use bevy::reflect::TypeUuid;
 use bevy::render2::mesh::{Indices, Mesh};
 use parking_lot::RwLock;
-use wgpu::PrimitiveTopology;
+use wgpu::{Extent3d, PrimitiveTopology};
 
 use super::palette::AtariPalette;
 
@@ -17,6 +17,7 @@ pub struct AnticDataInner {
     pub custom: Vec<[f32; 4]>,
     pub uvs: Vec<[f32; 2]>,
     pub indices: Vec<u16>,
+    pub collisions_agg_texture_size: Extent3d,
 }
 
 #[derive(TypeUuid, Clone)]
@@ -27,10 +28,8 @@ pub struct AnticData {
 
 const GTIA_REGS_MEMORY: usize = 240 * 32;
 
-impl Default for AnticData {
-    fn default() -> Self {
-        // max 30 lines of text mode and 240 lines x 32 bytes / line
-        // let texture_data = Vec::with_capacity(30 * 1024 + 240 * 32);
+impl AnticData {
+    pub fn new(collisions_agg_texture_size: Extent3d) -> Self {
         let mut memory = Vec::with_capacity(GTIA_REGS_MEMORY + 256 * 11 * 4 * 4);
         memory.resize(memory.capacity(), 0);
         Self {
@@ -42,12 +41,10 @@ impl Default for AnticData {
                 custom: Default::default(),
                 uvs: Default::default(),
                 indices: Default::default(),
+                collisions_agg_texture_size,
             })),
         }
     }
-}
-
-impl AnticData {
     pub fn set_gtia_regs(&mut self, scan_line: usize, regs: &crate::GTIARegs) {
         assert!(std::mem::size_of::<crate::GTIARegs>() == 32);
         let mut inner = self.inner.write();
@@ -74,6 +71,42 @@ impl AnticData {
         inner.indices.clear();
     }
 
+    pub fn create_collisions_agg_mesh(&self) -> Mesh {
+        let mut mesh = Mesh::new(PrimitiveTopology::TriangleList);
+
+        let w = 240.0;
+        let h = 384.0;
+
+        let north_west = vec2(0.0, h);
+        let north_east = vec2(w, h);
+        let south_west = vec2(0.0, 0.0);
+        let south_east = vec2(w, 0.0);
+
+        let positions = vec![
+            [south_west.x, south_west.y, 0.0],
+            [north_west.x, north_west.y, 0.0],
+            [north_east.x, north_east.y, 0.0],
+            [south_east.x, south_east.y, 0.0],
+        ];
+
+        bevy::log::info!("positions: {:?}", positions);
+
+        let uvs = vec![[0.0, 1.0], [0.0, 0.0], [1.0, 0.0], [1.0, 1.0]];
+        let custom = vec![
+            [0.0, 0.0, 0.0, 0.0],
+            [0.0, 0.0, 0.0, 0.0],
+            [0.0, 0.0, 0.0, 0.0],
+            [0.0, 0.0, 0.0, 0.0],
+        ];
+        let indices = vec![0, 2, 1, 0, 3, 2];
+
+        mesh.set_attribute(Mesh::ATTRIBUTE_POSITION, positions.clone());
+        mesh.set_attribute(Mesh::ATTRIBUTE_UV_0, uvs.clone());
+        mesh.set_attribute("Vertex_ZCustom", custom.clone());
+        mesh.set_indices(Some(Indices::U16(indices.clone())));
+        mesh
+    }
+
     pub fn create_mesh(&self) -> Mesh {
         let mut mesh = Mesh::new(PrimitiveTopology::TriangleList);
         let inner = self.inner.read();
@@ -90,10 +123,12 @@ impl AnticData {
 
         let scan_line_y = mode_line.scan_line as f32 - 8.0;
 
-        let north_west = vec2(-192.0, 120.0 - scan_line_y);
-        let north_east = vec2(192.0, 120.0 - scan_line_y);
-        let south_west = vec2(-192.0, 120.0 - (scan_line_y + mode_line.height as f32));
-        let south_east = vec2(192.0, 120.0 - (scan_line_y + mode_line.height as f32));
+        // TODO - flip y using projection matrix, for some reason this didn't worked
+
+        let north_west = vec2(0.0, 240.0 - scan_line_y);
+        let north_east = vec2(384.0, 240.0 - scan_line_y);
+        let south_west = vec2(0.0, 240.0 - (scan_line_y + mode_line.height as f32));
+        let south_east = vec2(384.0, 240.0 - (scan_line_y + mode_line.height as f32));
 
         inner.positions.push([south_west.x, south_west.y, 0.0]);
         inner.positions.push([north_west.x, north_west.y, 0.0]);

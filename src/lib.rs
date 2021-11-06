@@ -7,7 +7,7 @@ use bevy::{
     prelude::{info, AddAsset, App, Assets, Handle, HandleUntyped, Plugin},
     reflect::TypeUuid,
     render2::{
-        camera::{CameraProjection, OrthographicProjection},
+        camera::{CameraProjection, OrthographicProjection, WindowOrigin},
         render_asset::RenderAssetPlugin,
         render_component::ExtractComponentPlugin,
         render_graph::RenderGraph,
@@ -20,12 +20,9 @@ use bevy::{
 };
 
 mod antic_data;
-mod render;
 mod palette;
-use render::{
-    pass::{AnticPassNode, AnticPhase, CollisionsAggPhase},
-    COLLISIONS_AGG_TEXTURE_SIZE,
-};
+mod render;
+use render::pass::{AnticPassNode, AnticPhase, CollisionsAggPhase};
 
 const ANTIC_SHADER_HANDLE: HandleUntyped =
     HandleUntyped::weak_from_u64(Shader::TYPE_UUID, 9390220767195311254);
@@ -44,15 +41,30 @@ use crate::render::pass::{AssetOutputNode, CollisionsAggNode};
 
 pub struct AtariAnticPlugin;
 
+pub const COLLISIONS_AGG_TEXTURE_SIZE: Extent3d = Extent3d {
+    width: 256,
+    height: 8,
+    depth_or_array_layers: 1,
+};
+
 impl Plugin for AtariAnticPlugin {
     fn build(&self, app: &mut App) {
-        let mut projection = OrthographicProjection::default();
-        projection.update(384.0, 240.0);
+        let projection = OrthographicProjection {
+            left: 0.0,
+            top: 0.0,
+            right: 384.0,
+            bottom: 240.0,
+            window_origin: WindowOrigin::BottomLeft,
+            ..OrthographicProjection::default()
+        };
+        // let mut projection = OrthographicProjection::default();
+        // projection.window_origin = WindowOrigin::BottomLeft;
+        // projection.update(384.0, 240.0);
         let projection_matrix = projection.get_projection_matrix();
         info!("projection matrix: {:?}", projection_matrix);
 
         let render_device = app.world.get_resource::<RenderDevice>().unwrap();
-        let collisions_data = CollisionsData::new(&render_device);
+        let collisions_data = CollisionsData::new(&render_device, COLLISIONS_AGG_TEXTURE_SIZE);
 
         let mut shaders = app.world.get_resource_mut::<Assets<Shader>>().unwrap();
         let antic_shader = Shader::from_wgsl(include_str!("render/antic.wgsl"));
@@ -65,7 +77,10 @@ impl Plugin for AtariAnticPlugin {
             .add_plugin(RenderAssetPlugin::<AnticData>::default());
 
         let mut atari_data_assets = app.world.get_resource_mut::<Assets<AnticData>>().unwrap();
-        atari_data_assets.set_untracked(ANTIC_DATA_HANDLE, AnticData::default());
+        atari_data_assets.set_untracked(
+            ANTIC_DATA_HANDLE,
+            AnticData::new(COLLISIONS_AGG_TEXTURE_SIZE),
+        );
 
         let render_app = app.sub_app(RenderApp);
         render_app
@@ -193,20 +208,24 @@ impl ModeLineDescr {
 
 #[derive(Clone)]
 pub struct CollisionsData {
-    pub data: Arc<RwLock<[u64; 240]>>,
+    pub data: Arc<RwLock<[u64; 256]>>,
+    texture_size: Extent3d,
     pub(crate) buffer: Buffer,
 }
 
 impl CollisionsData {
-    fn new(render_device: &RenderDevice) -> Self {
+    const BYTES_PER_PIXEL: usize = 8;
+    fn new(render_device: &RenderDevice, texture_size: Extent3d) -> Self {
         let buffer = render_device.create_buffer(&BufferDescriptor {
             label: Some("atari collisions buffer"),
             usage: BufferUsages::COPY_DST | BufferUsages::MAP_READ,
-            size: 384 * 240 * 8,
+            size: ((texture_size.width * texture_size.height) as usize
+                * CollisionsData::BYTES_PER_PIXEL) as u64,
             mapped_at_creation: false,
         });
         Self {
-            data: Arc::new(RwLock::new([0; 240])),
+            data: Arc::new(RwLock::new([0; 256])),
+            texture_size,
             buffer,
         }
     }
@@ -219,22 +238,27 @@ impl CollisionsData {
         {
             let buffer_view = slice.get_mapped_range();
             let data: &[u8] = &buffer_view;
-            let data =
-                unsafe { std::slice::from_raw_parts(data.as_ptr() as *const u64, data.len() / 8) };
+            let data = unsafe {
+                std::slice::from_raw_parts(
+                    data.as_ptr() as *const u64,
+                    data.len() / CollisionsData::BYTES_PER_PIXEL,
+                )
+            };
+            // bevy::log::info!("data: {:x?}", data);
             let guard = &mut self.data.write();
             let dest = guard.as_mut();
-
-            let (w, h) = (
-                COLLISIONS_AGG_TEXTURE_SIZE.width as usize,
-                COLLISIONS_AGG_TEXTURE_SIZE.height as usize,
-            );
-
             let mut index = 0;
-            for y in 0..h {
-                dest[y] = 0;
-                for _ in 0..w {
-                    dest[y] |= data[index];
-                    index += 1;
+            for y in 0..self.texture_size.height {
+                if y == 0 {
+                    for x in 0..self.texture_size.width as usize {
+                        dest[x] = data[index];
+                        index += 1;
+                    }
+                } else {
+                    for x in 0..self.texture_size.width as usize {
+                        dest[x] |= data[index];
+                        index += 1;
+                    }
                 }
             }
         }

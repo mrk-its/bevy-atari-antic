@@ -77,10 +77,26 @@ fn vertex(vertex: Vertex) -> VertexOutput {
     let world_position = vec4<f32>(vertex.position, 1.0);
     var out: VertexOutput;
     let view_proj = mat4x4<f32>(
-        vec4<f32>(0.0052083335, 0.0, 0.0, 0.0),
-        vec4<f32>(0.0, 0.008333334, 0.0, 0.0),
+        vec4<f32>(2.0 / 384.0, 0.0, 0.0, 0.0),
+        vec4<f32>(0.0, 2.0 / 240.0, 0.0, 0.0),
         vec4<f32>(0.0, 0.0, 0.001, 0.0),
-        vec4<f32>(-0.0, -0.0, 1.0, 1.0)
+        vec4<f32>(-1.0, -1.0, 1.0, 1.0)
+    );
+    out.clip_position = view_proj * world_position;
+    out.uv = vertex.uv;
+    out.custom = vertex.custom;
+    return out;
+}
+
+[[stage(vertex)]]
+fn collision_agg_vertex(vertex: Vertex) -> VertexOutput {
+    let world_position = vec4<f32>(vertex.position, 1.0);
+    var out: VertexOutput;
+    let view_proj = mat4x4<f32>(
+        vec4<f32>(2.0 / 256.0, 0.0, 0.0, 0.0),
+        vec4<f32>(0.0, 2.0 / 384.0, 0.0, 0.0),
+        vec4<f32>(0.0, 0.0, 0.001, 0.0),
+        vec4<f32>(-1.0, -1.0, 1.0, 1.0)
     );
     out.clip_position = view_proj * world_position;
     out.uv = vertex.uv;
@@ -93,10 +109,44 @@ fn collisions_agg_fragment(
     [[location(1)]] uv: vec2<f32>,
     [[location(2), interpolate(flat)]] custom: vec4<f32>
 ) -> [[location(0)]] vec4<u32> {
-    let TEXTURE_WIDTH = 32;
-    let STRIP_WIDTH = 384 / TEXTURE_WIDTH;
-    let px = i32(uv.x * f32(TEXTURE_WIDTH)) * STRIP_WIDTH;
-    let py = i32(uv.y * 240.0);
+    let TEXTURE_HEIGHT = 32;
+# ifdef T_1
+    let TEXTURE_HEIGHT = 1;
+# endif
+
+# ifdef T_2
+    let TEXTURE_HEIGHT = 2;
+# endif
+
+# ifdef T_3
+    let TEXTURE_HEIGHT = 3;
+# endif
+
+# ifdef T_4
+    let TEXTURE_HEIGHT = 4;
+# endif
+# ifdef T_6
+    let TEXTURE_HEIGHT = 6;
+# endif
+# ifdef T_8
+    let TEXTURE_HEIGHT = 8;
+# endif
+# ifdef T_12
+    let TEXTURE_HEIGHT = 12;
+# endif
+# ifdef T_16
+    let TEXTURE_HEIGHT = 16;
+# endif
+# ifdef T_24
+    let TEXTURE_HEIGHT = 24;
+# endif
+# ifdef T_32
+    let TEXTURE_HEIGHT = 32;
+# endif
+
+    let STRIP_WIDTH = 384 / TEXTURE_HEIGHT;
+    let px = i32(uv.y * f32(TEXTURE_HEIGHT)) * STRIP_WIDTH;
+    let py = i32(uv.x * 240.0);
 
     var v = vec4<u32>(0u, 0u, 0u, 0u);
     for(var x = 0; x < STRIP_WIDTH; x = x + 1) {
@@ -402,5 +452,6 @@ fn fragment(
     var out: FragmentOutput;
     out.color = palette.palette[color_reg];
     out.collisions = o_CollisionsTarget;
+    // out.collisions = vec4<u32>(u32(scan_line), 1u << u32(x / 12.0), 0u, 0u);
     return out;
 }

@@ -49,9 +49,8 @@ fn main() {
         .add_startup_system(setup)
         .add_system(update);
 
-    #[cfg(not(target_arch = "wasm32"))]
-    app.add_system(quit_after_few_frames);
-
+    // #[cfg(not(target_arch = "wasm32"))]
+    // app.add_system(quit_after_few_frames);
     app.run();
 }
 
@@ -84,7 +83,9 @@ fn update(
 }
 
 fn setup(mut commands: Commands, mut atari_data_assets: ResMut<Assets<AnticData>>) {
-    let atari_data = atari_data_assets.get_mut(ANTIC_DATA_HANDLE.typed::<AnticData>()).unwrap();
+    let atari_data = atari_data_assets
+        .get_mut(ANTIC_DATA_HANDLE.typed::<AnticData>())
+        .unwrap();
 
     let coffs = atari_data.reserve_antic_memory(1024, &mut |data| {
         data.copy_from_slice(include_bytes!("charset.dat"))
@@ -96,10 +97,13 @@ fn setup(mut commands: Commands, mut atari_data_assets: ResMut<Assets<AnticData>
             0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
         ])
     });
+
+    let start_scan_line = 64; // 104;
+
     let voffs0 = voffs;
     atari_data.insert_mode_line(&ModeLineDescr {
         mode: 0,
-        scan_line: 104,
+        scan_line: start_scan_line,
         width: 256,
         height: 8,
         n_bytes: 0,
@@ -113,7 +117,7 @@ fn setup(mut commands: Commands, mut atari_data_assets: ResMut<Assets<AnticData>
     });
     atari_data.insert_mode_line(&ModeLineDescr {
         mode: 2,
-        scan_line: 112,
+        scan_line: start_scan_line + 8,
         width: 256,
         height: 8,
         n_bytes: 0,
@@ -134,7 +138,7 @@ fn setup(mut commands: Commands, mut atari_data_assets: ResMut<Assets<AnticData>
 
     atari_data.insert_mode_line(&ModeLineDescr {
         mode: 2,
-        scan_line: 120,
+        scan_line: start_scan_line + 16,
         width: 256,
         height: 8,
         n_bytes: 0,
@@ -155,7 +159,7 @@ fn setup(mut commands: Commands, mut atari_data_assets: ResMut<Assets<AnticData>
 
     atari_data.insert_mode_line(&ModeLineDescr {
         mode: 2,
-        scan_line: 128,
+        scan_line: start_scan_line + 24,
         width: 256,
         height: 8,
         n_bytes: 0,
@@ -170,7 +174,7 @@ fn setup(mut commands: Commands, mut atari_data_assets: ResMut<Assets<AnticData>
 
     atari_data.insert_mode_line(&ModeLineDescr {
         mode: 2,
-        scan_line: 136,
+        scan_line: start_scan_line + 32,
         width: 256,
         height: 8,
         n_bytes: 0,
@@ -184,7 +188,7 @@ fn setup(mut commands: Commands, mut atari_data_assets: ResMut<Assets<AnticData>
     });
     atari_data.insert_mode_line(&ModeLineDescr {
         mode: 0,
-        scan_line: 144,
+        scan_line: start_scan_line + 40,
         width: 256,
         height: 8,
         n_bytes: 0,
@@ -229,7 +233,6 @@ fn setup(mut commands: Commands, mut atari_data_assets: ResMut<Assets<AnticData>
             },
         )
     }
-
 
     let handle: Handle<AnticData> = ANTIC_DATA_HANDLE.typed();
 

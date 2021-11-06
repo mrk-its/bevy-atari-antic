@@ -239,7 +239,7 @@ impl Node for CollisionsAggNode {
         let assets = world.get_resource::<RenderAssets<AnticData>>().unwrap();
         let collisions_agg_texture = graph.get_input_texture("collisions_agg_texture_view")?;
 
-        let clear_color = Color::rgba(0.1, 0.1, 0.1, 1.0);
+        let clear_color = Color::rgba(0.0, 0.0, 0.0, 0.0);
 
         let collisions_agg_render_phase = world
             .get_resource::<RenderPhase<CollisionsAggPhase>>()
@@ -287,25 +287,7 @@ impl Node for CollisionsAggNode {
                 return Ok(());
             };
 
-        // for _item in render_phase.items.iter() {
-        //     render_context.command_encoder.copy_texture_to_buffer(
-        //         collisions_texture.as_image_copy(),
-        //         wgpu::ImageCopyBuffer {
-        //             buffer: &self.collisions_data.buffer,
-        //             layout: wgpu::ImageDataLayout {
-        //                 offset: 0,
-        //                 bytes_per_row: Some(std::num::NonZeroU32::new(384 * 8).unwrap()),
-        //                 rows_per_image: None,
-        //             },
-        //         },
-        //         Extent3d {
-        //             width: 384,
-        //             height: 240,
-        //             depth_or_array_layers: 1,
-        //         },
-        //     );
-        //     self.collisions_data.read_collisions(&render_context.render_device)
-        // }
+        let copy_size = gpu_antic_data.inner.collisions_agg_texture_size;
 
         for _item in collisions_agg_render_phase.items.iter() {
             render_context.command_encoder.copy_texture_to_buffer(
@@ -315,13 +297,15 @@ impl Node for CollisionsAggNode {
                     layout: wgpu::ImageDataLayout {
                         offset: 0,
                         bytes_per_row: Some(
-                            std::num::NonZeroU32::new(super::COLLISIONS_AGG_TEXTURE_SIZE.width * 8)
-                                .unwrap(),
+                            std::num::NonZeroU32::new(
+                                copy_size.width * crate::CollisionsData::BYTES_PER_PIXEL as u32,
+                            )
+                            .unwrap(),
                         ),
                         rows_per_image: None,
                     },
                 },
-                super::COLLISIONS_AGG_TEXTURE_SIZE,
+                copy_size,
             );
             self.collisions_data
                 .read_collisions(&render_context.render_device)
