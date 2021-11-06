@@ -22,7 +22,10 @@ use bevy::{
 mod atari_data;
 mod render;
 mod resources;
-use render::pass::{AnticPassNode, AnticPhase, CollisionsAggPhase};
+use render::{
+    pass::{AnticPassNode, AnticPhase, CollisionsAggPhase},
+    COLLISIONS_AGG_TEXTURE_SIZE,
+};
 
 const ANTIC_SHADER_HANDLE: HandleUntyped =
     HandleUntyped::weak_from_u64(Shader::TYPE_UUID, 9390220767195311254);
@@ -37,7 +40,7 @@ pub const ANTIC_DATA_HANDLE: HandleUntyped =
 
 pub use atari_data::AnticData;
 
-use crate::render::pass::AssetOutputNode;
+use crate::render::pass::{AssetOutputNode, CollisionsAggNode};
 
 pub struct AtariAnticPlugin;
 
@@ -76,17 +79,21 @@ impl Plugin for AtariAnticPlugin {
             .add_render_command::<CollisionsAggPhase, render::SetCollisionsAggPipeline>()
             .add_system_to_stage(RenderStage::Queue, render::queue_meshes);
 
-        let antic_node = AnticPassNode::new(collisions_data);
+        let antic_node = AnticPassNode::default();
 
         let mut graph = render_app.world.get_resource_mut::<RenderGraph>().unwrap();
         graph.add_node("antic_node", antic_node);
+        graph
+            .add_node_edge(
+                "antic_node",
+                bevy::core_pipeline::node::MAIN_PASS_DEPENDENCIES,
+            )
+            .unwrap();
+
         graph.add_node(
             "main_texture_node",
             AssetOutputNode::new(ANTIC_IMAGE_HANDLE.typed::<Image>()),
         );
-        graph
-            .add_node_edge("main_texture_node", "antic_node")
-            .unwrap();
         graph
             .add_slot_edge(
                 "main_texture_node",
@@ -100,31 +107,38 @@ impl Plugin for AtariAnticPlugin {
             AssetOutputNode::new(ANTIC_DATA_HANDLE.typed::<AnticData>()),
         );
         graph
-            .add_node_edge("antic_data_node", "antic_node")
-            .unwrap();
-        graph
             .add_slot_edge(
                 "antic_data_node",
                 "collisions_texture_view",
                 "antic_node",
                 "collisions_texture_view",
-            )
-            .unwrap();
-        graph
-            .add_slot_edge(
-                "antic_data_node",
-                "collisions_agg_texture_view",
-                "antic_node",
-                "collisions_agg_texture_view",
             )
             .unwrap();
 
-        graph
-            .add_node_edge(
-                "antic_node",
-                bevy::core_pipeline::node::MAIN_PASS_DEPENDENCIES,
-            )
-            .unwrap();
+        if true {
+            graph.add_node(
+                "collisions_agg_node",
+                CollisionsAggNode::new(collisions_data),
+            );
+            graph
+                .add_node_edge(
+                    "collisions_agg_node",
+                    bevy::core_pipeline::node::MAIN_PASS_DEPENDENCIES,
+                )
+                .unwrap();
+            graph
+                .add_slot_edge(
+                    "antic_data_node",
+                    "collisions_agg_texture_view",
+                    "collisions_agg_node",
+                    "collisions_agg_texture_view",
+                )
+                .unwrap();
+
+            graph
+                .add_node_edge("collisions_agg_node", "antic_node")
+                .unwrap();
+        }
 
         let mut image = Image::new(
             Extent3d {
@@ -207,10 +221,15 @@ impl CollisionsData {
             let guard = &mut self.data.write();
             let dest = guard.as_mut();
 
+            let (w, h) = (
+                COLLISIONS_AGG_TEXTURE_SIZE.width as usize,
+                COLLISIONS_AGG_TEXTURE_SIZE.height as usize,
+            );
+
             let mut index = 0;
-            for y in 0..240 {
+            for y in 0..h {
                 dest[y] = 0;
-                for _ in 0..384 {
+                for _ in 0..w {
                     dest[y] |= data[index];
                     index += 1;
                 }

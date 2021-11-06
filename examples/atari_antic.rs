@@ -8,7 +8,9 @@ use bevy::{
     window::WindowDescriptor,
     PipelinedDefaultPlugins,
 };
-use bevy_atari_antic::{AnticData, GTIARegs, ANTIC_DATA_HANDLE, ANTIC_IMAGE_HANDLE};
+use bevy_atari_antic::{
+    AnticData, CollisionsData, GTIARegs, ANTIC_DATA_HANDLE, ANTIC_IMAGE_HANDLE,
+};
 use bevy_atari_antic::{AtariAnticPlugin, ModeLineDescr};
 
 use bevy::sprite2::{PipelinedSpriteBundle, Sprite};
@@ -61,7 +63,11 @@ fn quit_after_few_frames(mut cnt: Local<u32>, mut app_exit_events: EventWriter<A
     }
 }
 
-fn update(mut atari_data_assets: ResMut<Assets<AnticData>>, query: Query<&Handle<AnticData>>) {
+fn update(
+    mut atari_data_assets: ResMut<Assets<AnticData>>,
+    query: Query<&Handle<AnticData>>,
+    collisions: Res<CollisionsData>,
+) {
     let span = bevy::utils::tracing::span!(bevy::utils::tracing::Level::INFO, "my_span");
     let _entered = span.enter();
     for handle in query.iter() {
@@ -73,6 +79,8 @@ fn update(mut atari_data_assets: ResMut<Assets<AnticData>>, query: Query<&Handle
             *c = c.wrapping_add(1);
         }
     }
+    let collisions = *collisions.data.read();
+    bevy::log::info!("collisions: {:x?}", collisions);
 }
 
 fn setup(mut commands: Commands, mut atari_data_assets: ResMut<Assets<AnticData>>) {
