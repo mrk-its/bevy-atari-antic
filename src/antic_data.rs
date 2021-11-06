@@ -29,8 +29,8 @@ const GTIA_REGS_MEMORY: usize = 240 * 32;
 
 impl Default for AnticData {
     fn default() -> Self {
-        // max 30 lines of text mode and 240 lines x 48 bytes / line
-        // let texture_data = Vec::with_capacity(30 * 1024 + 240 * 48);
+        // max 30 lines of text mode and 240 lines x 32 bytes / line
+        // let texture_data = Vec::with_capacity(30 * 1024 + 240 * 32);
         let mut memory = Vec::with_capacity(GTIA_REGS_MEMORY + 256 * 11 * 4 * 4);
         memory.resize(memory.capacity(), 0);
         Self {
@@ -62,7 +62,6 @@ impl AnticData {
         inner.memory_used += len;
 
         cb(&mut inner.memory[dst_offset..dst_offset + len]);
-        // bevy::utils::tracing::info!("antic memory offs: {}, len: {}", dst_offset, len);
         dst_offset - GTIA_REGS_MEMORY
     }
 
