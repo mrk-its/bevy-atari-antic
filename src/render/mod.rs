@@ -28,11 +28,13 @@ pub struct GpuAnticDataInner {
     index_buffer: Buffer,
     vertex_buffer: Buffer,
     // collisions_buffer: Buffer,
-    texture: Texture,
-    texture_view: TextureView,
+    data_texture: Texture,
+    data_texture_view: TextureView,
+    collisions_texture: Texture,
+    collisions_texture_view: TextureView,
     collisions_agg_texture: Texture,
     collisions_agg_texture_view: TextureView,
-    bind_group: BindGroup,
+    main_bind_group: BindGroup,
     collisions_agg_bind_group: BindGroup,
 }
 
@@ -50,6 +52,12 @@ pub const DATA_TEXTURE_SIZE: Extent3d = Extent3d {
 
 pub const COLLISIONS_AGG_TEXTURE_SIZE: Extent3d = Extent3d {
     width: 384 / 12,
+    height: 240,
+    depth_or_array_layers: 1,
+};
+
+pub const COLLISIONS_TEXTURE_SIZE: Extent3d = Extent3d {
+    width: 384,
     height: 240,
     depth_or_array_layers: 1,
 };
@@ -101,7 +109,7 @@ impl RenderAsset for AnticData {
         );
 
         render_queue.write_texture(
-            gpu_data.inner.texture.as_image_copy(),
+            gpu_data.inner.data_texture.as_image_copy(),
             &inner.memory,
             wgpu::ImageDataLayout {
                 offset: 0,
@@ -132,8 +140,8 @@ impl AnticData {
             usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
         };
 
-        let texture = render_device.create_texture(&texture_descriptor);
-        let texture_view = texture.create_view(&TextureViewDescriptor::default());
+        let data_texture = render_device.create_texture(&texture_descriptor);
+        let data_texture_view = data_texture.create_view(&TextureViewDescriptor::default());
 
         let collisions_agg_texture_descriptor = wgpu::TextureDescriptor {
             size: COLLISIONS_AGG_TEXTURE_SIZE,
@@ -142,13 +150,31 @@ impl AnticData {
             label: Some("collisions_agg_data_texture"),
             mip_level_count: 1,
             sample_count: 1,
-            usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_SRC,
+            usage: wgpu::TextureUsages::TEXTURE_BINDING
+                | wgpu::TextureUsages::COPY_SRC
+                | wgpu::TextureUsages::RENDER_ATTACHMENT,
         };
 
         let collisions_agg_texture =
             render_device.create_texture(&collisions_agg_texture_descriptor);
         let collisions_agg_texture_view =
             collisions_agg_texture.create_view(&TextureViewDescriptor::default());
+
+        let collisions_texture_descriptor = wgpu::TextureDescriptor {
+            size: COLLISIONS_TEXTURE_SIZE,
+            dimension: TextureDimension::D2,
+            format: wgpu::TextureFormat::Rg32Uint,
+            label: Some("collisions_texture"),
+            mip_level_count: 1,
+            sample_count: 1,
+            usage: wgpu::TextureUsages::TEXTURE_BINDING
+                | wgpu::TextureUsages::COPY_SRC
+                | wgpu::TextureUsages::RENDER_ATTACHMENT,
+        };
+
+        let collisions_texture = render_device.create_texture(&collisions_texture_descriptor);
+        let collisions_texture_view =
+            collisions_texture.create_view(&TextureViewDescriptor::default());
 
         let palette_buffer = render_device.create_buffer(&BufferDescriptor {
             label: None,
@@ -170,11 +196,11 @@ impl AnticData {
             size: 1000000, // TODO
             mapped_at_creation: false,
         });
-        let bind_group = render_device.create_bind_group(&BindGroupDescriptor {
+        let main_bind_group = render_device.create_bind_group(&BindGroupDescriptor {
             entries: &[
                 BindGroupEntry {
                     binding: 0,
-                    resource: BindingResource::TextureView(&texture_view),
+                    resource: BindingResource::TextureView(&data_texture_view),
                 },
                 BindGroupEntry {
                     binding: 1,
@@ -188,7 +214,7 @@ impl AnticData {
         let collisions_agg_bind_group = render_device.create_bind_group(&BindGroupDescriptor {
             entries: &[BindGroupEntry {
                 binding: 0,
-                resource: BindingResource::TextureView(&collisions_agg_texture_view),
+                resource: BindingResource::TextureView(&collisions_texture_view),
             }],
             label: Some("collisions_agg_bind_group"),
             layout: &collisions_agg_pipeline.data_layout,
@@ -198,11 +224,13 @@ impl AnticData {
             palette_buffer,
             index_buffer,
             vertex_buffer,
-            texture,
-            texture_view,
+            data_texture,
+            data_texture_view,
+            collisions_texture,
+            collisions_texture_view,
             collisions_agg_texture,
             collisions_agg_texture_view,
-            bind_group,
+            main_bind_group,
             collisions_agg_bind_group,
         })
     }
@@ -281,7 +309,7 @@ pub struct AnticPipelineKey;
 impl SpecializedPipeline for AnticPipeline {
     type Key = AnticPipelineKey;
 
-    fn specialize(&self, key: Self::Key) -> RenderPipelineDescriptor {
+    fn specialize(&self, _key: Self::Key) -> RenderPipelineDescriptor {
         RenderPipelineDescriptor {
             label: None,
             vertex: VertexState {
@@ -352,7 +380,7 @@ pub struct CollisionsAggPipelineKey;
 impl SpecializedPipeline for CollisionsAggPipeline {
     type Key = CollisionsAggPipelineKey;
 
-    fn specialize(&self, key: Self::Key) -> RenderPipelineDescriptor {
+    fn specialize(&self, _key: Self::Key) -> RenderPipelineDescriptor {
         RenderPipelineDescriptor {
             label: None,
             vertex: VertexState {
@@ -423,10 +451,7 @@ pub fn queue_meshes(
     mut pipeline_cache: ResMut<RenderPipelineCache>,
     atari_data: Query<(Entity, &Handle<AnticData>)>,
 ) {
-    let draw_function = draw_functions
-        .read()
-        .get_id::<SetAnticPipeline>()
-        .unwrap();
+    let draw_function = draw_functions.read().get_id::<SetAnticPipeline>().unwrap();
     let collisions_agg_draw_function = collisions_agg_draw_functions
         .read()
         .get_id::<SetCollisionsAggPipeline>()
@@ -478,7 +503,7 @@ impl RenderCommand<AnticPhase> for SetAnticPipeline {
         let index_count = gpu_atari_data.index_count;
         if let Some(pipeline) = pipeline_cache.into_inner().get(item.pipeline) {
             pass.set_render_pipeline(pipeline);
-            pass.set_bind_group(0, &gpu_atari_data.inner.bind_group, &[]);
+            pass.set_bind_group(0, &gpu_atari_data.inner.main_bind_group, &[]);
             pass.set_vertex_buffer(0, gpu_atari_data.inner.vertex_buffer.slice(..));
             pass.set_index_buffer(
                 gpu_atari_data

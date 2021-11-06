@@ -1,22 +1,21 @@
 use bevy::{
     app::AppExit,
+    core_pipeline::ClearColor,
     ecs::prelude::*,
     math::Vec3,
     prelude::{App, Assets, Handle, Transform},
-    render2::{
-        camera::OrthographicCameraBundle,
-        view::Msaa,
-    },
+    render2::{camera::OrthographicCameraBundle, color::Color, view::Msaa},
     window::WindowDescriptor,
     PipelinedDefaultPlugins,
 };
-use bevy_atari_antic::{AnticData, GTIARegs, ANTIC_IMAGE_HANDLE};
+use bevy_atari_antic::{AnticData, GTIARegs, ANTIC_DATA_HANDLE, ANTIC_IMAGE_HANDLE};
 use bevy_atari_antic::{AtariAnticPlugin, ModeLineDescr};
 
 use bevy::sprite2::{PipelinedSpriteBundle, Sprite};
 
 fn main() {
     let mut app = App::new();
+    app.insert_resource(ClearColor(Color::rgb(0.3, 0.0, 0.6)));
     app.insert_resource(WindowDescriptor {
         width: 1280.0,
         height: 720.0,
@@ -76,10 +75,7 @@ fn update(mut atari_data_assets: ResMut<Assets<AnticData>>, query: Query<&Handle
     }
 }
 
-fn setup(
-    mut commands: Commands,
-    mut atari_data_assets: ResMut<Assets<AnticData>>,
-) {
+fn setup(mut commands: Commands, mut atari_data_assets: ResMut<Assets<AnticData>>) {
     let mut atari_data = AnticData::default();
 
     let coffs = atari_data.reserve_antic_memory(1024, &mut |data| {
@@ -226,9 +222,11 @@ fn setup(
         )
     }
 
-    let atari_data_handle = atari_data_assets.add(atari_data);
+    atari_data_assets.set_untracked(ANTIC_DATA_HANDLE, atari_data);
 
-    commands.spawn().insert_bundle((atari_data_handle,));
+    let handle: Handle<AnticData> = ANTIC_DATA_HANDLE.typed();
+
+    commands.spawn().insert_bundle((handle,));
 
     for x in -1..=1 {
         for y in -1..=1 {
