@@ -1,24 +1,18 @@
 use bevy::{
-    asset::Asset,
     ecs::prelude::*,
-    prelude::info,
     prelude::Handle,
     render2::{
         color::Color,
         render_asset::{RenderAsset, RenderAssets},
-        render_graph::{Node, NodeRunError, OutputSlotError, SlotInfo, SlotType, SlotValue},
+        render_graph::{Node, NodeRunError, OutputSlotError, SlotInfo, SlotType},
         render_phase::{DrawFunctionId, DrawFunctions, PhaseItem, RenderPhase, TrackedRenderPass},
-        render_resource::{CachedPipelineId, Texture, TextureView},
-        renderer::RenderDevice,
+        render_resource::CachedPipelineId,
         texture::Image,
     },
 };
-use wgpu::{
-    BindGroupDescriptor, Extent3d, LoadOp, Operations, RenderPassColorAttachment,
-    RenderPassDescriptor,
-};
+use wgpu::{LoadOp, Operations, RenderPassColorAttachment, RenderPassDescriptor};
 
-use crate::{AnticData, CollisionsData, ANTIC_DATA_HANDLE, ANTIC_IMAGE_HANDLE};
+use crate::{AnticData, CollisionsData, ANTIC_DATA_HANDLE};
 pub struct AnticPhase {
     pub pipeline: CachedPipelineId,
     pub entity: Entity,
