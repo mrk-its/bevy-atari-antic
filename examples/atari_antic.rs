@@ -15,12 +15,15 @@ use bevy_atari_antic::{AtariAnticPlugin, ModeLineDescr};
 
 use bevy::sprite2::{PipelinedSpriteBundle, Sprite};
 
+#[derive(Debug)]
+pub struct MemOffsets(pub [usize; 24]);
+
 fn main() {
     let mut app = App::new();
     app.insert_resource(ClearColor(Color::rgb(0.3, 0.0, 0.6)));
     app.insert_resource(WindowDescriptor {
-        width: 1280.0,
-        height: 720.0,
+        width: 384.0 * 2.0,
+        height: 240.0 * 2.0,
         scale_factor_override: Some(1.0),
         ..Default::default()
     });
@@ -45,6 +48,7 @@ fn main() {
 
     app.add_plugins(PipelinedDefaultPlugins)
         // .add_plugin(FrameTimeDiagnosticsPlugin::default())
+        .insert_resource(MemOffsets([0; 24]))
         .add_plugin(AtariAnticPlugin)
         .add_startup_system(setup)
         .add_system(update);
@@ -66,9 +70,14 @@ fn update(
     mut atari_data_assets: ResMut<Assets<AnticData>>,
     query: Query<&Handle<AnticData>>,
     collisions: Res<CollisionsData>,
+    scr_offsets: Res<MemOffsets>
 ) {
     let span = bevy::utils::tracing::span!(bevy::utils::tracing::Level::INFO, "my_span");
     let _entered = span.enter();
+
+    let collisions = *collisions.data.read();
+    let col_agg = collisions.iter().cloned().reduce(|a, v| a | v).unwrap();
+
     for handle in query.iter() {
         if let Some(atari_data) = atari_data_assets.get_mut(handle) {
             let mut inner = atari_data.inner.write();
@@ -76,13 +85,26 @@ fn update(
             *c = c.wrapping_add(1);
             let c = &mut inner.memory[32 * 240 + 1024 + 31];
             *c = c.wrapping_add(1);
+
+            let text = format!("collisions: {:x}", col_agg);
+            text.as_bytes().iter().cloned().map(internal_chr).enumerate().for_each(|(i, c)| {
+                inner.memory[32 * 240 + scr_offsets.0[1] + i + 2] = c;
+            });
         }
     }
-    // let collisions = *collisions.data.read();
-    // bevy::log::info!("collisions: {:x?}", collisions);
 }
 
-fn setup(mut commands: Commands, mut atari_data_assets: ResMut<Assets<AnticData>>) {
+
+fn internal_chr(c: u8) -> u8 {
+    match c {
+        0..=31 => c + 64,
+        32..=95 => c - 32,
+        96..=127 => c,
+        _ => 128 + internal_chr(c - 128),
+    }
+}
+
+fn setup(mut commands: Commands, mut atari_data_assets: ResMut<Assets<AnticData>>, mut scr_offsets: ResMut<MemOffsets>) {
     let atari_data = atari_data_assets
         .get_mut(ANTIC_DATA_HANDLE.typed::<AnticData>())
         .unwrap();
@@ -97,8 +119,8 @@ fn setup(mut commands: Commands, mut atari_data_assets: ResMut<Assets<AnticData>
             0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
         ])
     });
-
-    let start_scan_line = 64; // 104;
+    scr_offsets.0[0] = voffs;
+    let start_scan_line = 104;
 
     let voffs0 = voffs;
     atari_data.insert_mode_line(&ModeLineDescr {
@@ -135,6 +157,7 @@ fn setup(mut commands: Commands, mut atari_data_assets: ResMut<Assets<AnticData>
             0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
         ])
     });
+    scr_offsets.0[1] = voffs;
 
     atari_data.insert_mode_line(&ModeLineDescr {
         mode: 2,
@@ -156,6 +179,7 @@ fn setup(mut commands: Commands, mut atari_data_assets: ResMut<Assets<AnticData>
             0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
         ])
     });
+    scr_offsets.0[2] = voffs;
 
     atari_data.insert_mode_line(&ModeLineDescr {
         mode: 2,
@@ -201,19 +225,21 @@ fn setup(mut commands: Commands, mut atari_data_assets: ResMut<Assets<AnticData>
         charset_memory_offset: coffs,
     });
 
-    atari_data.reserve_antic_memory(40, &mut |data| {
+    let voffs = atari_data.reserve_antic_memory(40, &mut |data| {
         data.copy_from_slice(&[
             0, 0, 50, 101, 97, 100, 121, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
             0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
         ])
     });
+    scr_offsets.0[3] = voffs;
 
-    atari_data.reserve_antic_memory(40, &mut |data| {
+    let voffs = atari_data.reserve_antic_memory(40, &mut |data| {
         data.copy_from_slice(&[
             0, 0, 128, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
             0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
         ])
     });
+    scr_offsets.0[4] = voffs;
     for scan_line in 0..240 {
         atari_data.set_gtia_regs(
             scan_line,
@@ -238,19 +264,15 @@ fn setup(mut commands: Commands, mut atari_data_assets: ResMut<Assets<AnticData>
 
     commands.spawn().insert_bundle((handle,));
 
-    for x in -1..=1 {
-        for y in -1..=1 {
-            commands.spawn_bundle(PipelinedSpriteBundle {
-                sprite: Sprite::default(),
-                texture: crate::ANTIC_IMAGE_HANDLE.typed(),
-                transform: Transform {
-                    translation: Vec3::new(x as f32 * 400.0, y as f32 * 240.0, 0.0),
-                    ..Default::default()
-                },
-                global_transform: Default::default(),
-            });
-        }
-    }
+    commands.spawn_bundle(PipelinedSpriteBundle {
+        sprite: Sprite::default(),
+        texture: crate::ANTIC_IMAGE_HANDLE.typed(),
+        transform: Transform {
+            scale: Vec3::new(2.0, 2.0, 2.0),
+            ..Default::default()
+        },
+        global_transform: Default::default(),
+    });
 
     commands.spawn_bundle(OrthographicCameraBundle::new_2d());
 }

@@ -113,11 +113,6 @@ impl RenderAsset for AnticData {
                 0,
                 &vertex_data,
             );
-            bevy::log::info!(
-                "collisions_agg, vertex_data: {:?} index_data: {:?}",
-                vertex_data,
-                index_data
-            );
         }
 
         let mut gpu_data = (**cache).as_mut().unwrap();

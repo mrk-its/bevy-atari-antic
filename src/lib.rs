@@ -208,7 +208,7 @@ impl ModeLineDescr {
 
 #[derive(Clone)]
 pub struct CollisionsData {
-    pub data: Arc<RwLock<[u64; 256]>>,
+    pub data: Arc<RwLock<[u64; 240]>>,
     texture_size: Extent3d,
     pub(crate) buffer: Buffer,
 }
@@ -224,7 +224,7 @@ impl CollisionsData {
             mapped_at_creation: false,
         });
         Self {
-            data: Arc::new(RwLock::new([0; 256])),
+            data: Arc::new(RwLock::new([0; 240])),
             texture_size,
             buffer,
         }
@@ -248,17 +248,9 @@ impl CollisionsData {
             let guard = &mut self.data.write();
             let dest = guard.as_mut();
             let mut index = 0;
-            for y in 0..self.texture_size.height {
-                if y == 0 {
-                    for x in 0..256{
-                        dest[x] = data[index];
-                        index += 1;
-                    }
-                } else {
-                    for x in 0..256 as usize {
-                        dest[x] |= data[index];
-                        index += 1;
-                    }
+            for y in 0..self.texture_size.height as usize {
+                for x in 0..240 {
+                    dest[x] |= data[y << 8 | x];
                 }
             }
         }

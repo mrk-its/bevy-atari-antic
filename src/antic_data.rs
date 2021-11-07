@@ -89,8 +89,6 @@ impl AnticData {
             [south_east.x, south_east.y, 0.0],
         ];
 
-        bevy::log::info!("positions: {:?}", positions);
-
         let uvs = vec![[0.0, 1.0], [0.0, 0.0], [1.0, 0.0], [1.0, 1.0]];
         let custom = vec![
             [0.0, 0.0, 0.0, 0.0],
