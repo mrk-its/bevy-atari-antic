@@ -42,7 +42,7 @@ use crate::render::pass::{AssetOutputNode, CollisionsAggNode};
 pub struct AtariAnticPlugin;
 
 pub const COLLISIONS_AGG_TEXTURE_SIZE: Extent3d = Extent3d {
-    width: 256,
+    width: 128,
     height: 8,
     depth_or_array_layers: 1,
 };
@@ -214,7 +214,7 @@ pub struct CollisionsData {
 }
 
 impl CollisionsData {
-    const BYTES_PER_PIXEL: usize = 8;
+    const BYTES_PER_PIXEL: usize = 16;
     fn new(render_device: &RenderDevice, texture_size: Extent3d) -> Self {
         let buffer = render_device.create_buffer(&BufferDescriptor {
             label: Some("atari collisions buffer"),
@@ -241,7 +241,7 @@ impl CollisionsData {
             let data = unsafe {
                 std::slice::from_raw_parts(
                     data.as_ptr() as *const u64,
-                    data.len() / CollisionsData::BYTES_PER_PIXEL,
+                    data.len() / 8,
                 )
             };
             // bevy::log::info!("data: {:x?}", data);
@@ -250,12 +250,12 @@ impl CollisionsData {
             let mut index = 0;
             for y in 0..self.texture_size.height {
                 if y == 0 {
-                    for x in 0..self.texture_size.width as usize {
+                    for x in 0..256{
                         dest[x] = data[index];
                         index += 1;
                     }
                 } else {
-                    for x in 0..self.texture_size.width as usize {
+                    for x in 0..256 as usize {
                         dest[x] |= data[index];
                         index += 1;
                     }

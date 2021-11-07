@@ -93,7 +93,7 @@ fn collision_agg_vertex(vertex: Vertex) -> VertexOutput {
     let world_position = vec4<f32>(vertex.position, 1.0);
     var out: VertexOutput;
     let view_proj = mat4x4<f32>(
-        vec4<f32>(2.0 / 256.0, 0.0, 0.0, 0.0),
+        vec4<f32>(2.0 / 128.0, 0.0, 0.0, 0.0),
         vec4<f32>(0.0, 2.0 / 384.0, 0.0, 0.0),
         vec4<f32>(0.0, 0.0, 0.001, 0.0),
         vec4<f32>(-1.0, -1.0, 1.0, 1.0)
@@ -146,11 +146,13 @@ fn collisions_agg_fragment(
 
     let STRIP_WIDTH = 384 / TEXTURE_HEIGHT;
     let px = i32(uv.y * f32(TEXTURE_HEIGHT)) * STRIP_WIDTH;
-    let py = i32(uv.x * 240.0);
+    let py = i32(uv.x * 120.0) * 2;
 
     var v = vec4<u32>(0u, 0u, 0u, 0u);
     for(var x = 0; x < STRIP_WIDTH; x = x + 1) {
-        v = v | textureLoad(memory, vec2<i32>(px + x, py), 0);
+        let t1 = textureLoad(memory, vec2<i32>(px + x, py), 0);
+        let t2 = textureLoad(memory, vec2<i32>(px + x + 1, py), 0);
+        v = v | vec4<u32>(t1[0], t1[1], t2[0], t2[1]);
     }
     return v;
 }
@@ -452,6 +454,5 @@ fn fragment(
     var out: FragmentOutput;
     out.color = palette.palette[color_reg];
     out.collisions = o_CollisionsTarget;
-    // out.collisions = vec4<u32>(u32(scan_line), 1u << u32(x / 12.0), 0u, 0u);
     return out;
 }

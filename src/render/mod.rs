@@ -173,7 +173,7 @@ impl AnticData {
         let collisions_agg_texture_descriptor = wgpu::TextureDescriptor {
             size: collisions_agg_texture_size,
             dimension: TextureDimension::D2,
-            format: wgpu::TextureFormat::Rg32Uint,
+            format: wgpu::TextureFormat::Rgba32Uint,
             label: Some("collisions_agg_data_texture"),
             mip_level_count: 1,
             sample_count: 1,
@@ -462,7 +462,7 @@ impl SpecializedPipeline for CollisionsAggPipeline {
                 shader_defs: vec!["T_8".to_string()],
                 entry_point: "collisions_agg_fragment".into(),
                 targets: vec![ColorTargetState {
-                    format: TextureFormat::Rg32Uint,
+                    format: TextureFormat::Rgba32Uint,
                     blend: None,
                     write_mask: ColorWrites::ALL,
                 }],

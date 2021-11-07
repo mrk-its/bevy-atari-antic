@@ -49,8 +49,8 @@ fn main() {
         .add_startup_system(setup)
         .add_system(update);
 
-    // #[cfg(not(target_arch = "wasm32"))]
-    // app.add_system(quit_after_few_frames);
+    #[cfg(not(target_arch = "wasm32"))]
+    app.add_system(quit_after_few_frames);
     app.run();
 }
 
@@ -78,8 +78,8 @@ fn update(
             *c = c.wrapping_add(1);
         }
     }
-    let collisions = *collisions.data.read();
-    bevy::log::info!("collisions: {:x?}", collisions);
+    // let collisions = *collisions.data.read();
+    // bevy::log::info!("collisions: {:x?}", collisions);
 }
 
 fn setup(mut commands: Commands, mut atari_data_assets: ResMut<Assets<AnticData>>) {

@@ -74,7 +74,7 @@ impl AnticData {
     pub fn create_collisions_agg_mesh(&self) -> Mesh {
         let mut mesh = Mesh::new(PrimitiveTopology::TriangleList);
 
-        let w = 240.0;
+        let w = 120.0;
         let h = 384.0;
 
         let north_west = vec2(0.0, h);
