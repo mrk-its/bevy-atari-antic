@@ -49,7 +49,7 @@ impl AnticData {
         assert!(std::mem::size_of::<crate::GTIARegs>() == 32);
         let mut inner = self.inner.write();
         let ptr = inner.memory.as_mut_ptr() as *mut crate::GTIARegs;
-        unsafe { *ptr.offset(scan_line as isize) = *regs }
+        unsafe { *ptr.add(scan_line) = *regs }
     }
 
     pub fn reserve_antic_memory(&mut self, len: usize, cb: &mut dyn FnMut(&mut [u8])) -> usize {
@@ -98,10 +98,10 @@ impl AnticData {
         ];
         let indices = vec![0, 2, 1, 0, 3, 2];
 
-        mesh.set_attribute(Mesh::ATTRIBUTE_POSITION, positions.clone());
-        mesh.set_attribute(Mesh::ATTRIBUTE_UV_0, uvs.clone());
-        mesh.set_attribute("Vertex_ZCustom", custom.clone());
-        mesh.set_indices(Some(Indices::U16(indices.clone())));
+        mesh.set_attribute(Mesh::ATTRIBUTE_POSITION, positions);
+        mesh.set_attribute(Mesh::ATTRIBUTE_UV_0, uvs);
+        mesh.set_attribute("Vertex_ZCustom", custom);
+        mesh.set_indices(Some(Indices::U16(indices)));
         mesh
     }
 
@@ -155,10 +155,10 @@ impl AnticData {
 
         inner.indices.extend(
             [
-                index_offset + 0,
+                index_offset,
                 index_offset + 2,
                 index_offset + 1,
-                index_offset + 0,
+                index_offset,
                 index_offset + 3,
                 index_offset + 2,
             ]

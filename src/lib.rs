@@ -64,7 +64,7 @@ impl Plugin for AtariAnticPlugin {
         info!("projection matrix: {:?}", projection_matrix);
 
         let render_device = app.world.get_resource::<RenderDevice>().unwrap();
-        let collisions_data = CollisionsData::new(&render_device, COLLISIONS_AGG_TEXTURE_SIZE);
+        let collisions_data = CollisionsData::new(render_device, COLLISIONS_AGG_TEXTURE_SIZE);
 
         let mut shaders = app.world.get_resource_mut::<Assets<Shader>>().unwrap();
         let antic_shader = Shader::from_wgsl(include_str!("render/antic.wgsl"));
@@ -195,7 +195,7 @@ pub struct ModeLineDescr {
 
 impl ModeLineDescr {
     pub fn next_mode_line(&self) -> usize {
-        return self.scan_line + self.height;
+        self.scan_line + self.height
     }
     pub fn charset_size(&self) -> usize {
         match self.mode {
@@ -243,7 +243,6 @@ impl CollisionsData {
             // bevy::log::info!("data: {:x?}", data);
             let guard = &mut self.data.write();
             let dest = guard.as_mut();
-            let mut index = 0;
             for y in 0..self.texture_size.height as usize {
                 for x in 0..240 {
                     dest[x] |= data[y << 8 | x];

@@ -1,3 +1,4 @@
+#![allow(clippy::type_complexity)]
 use bevy::{
     ecs::{
         prelude::*,
@@ -81,9 +82,9 @@ impl RenderAsset for AnticData {
         if cache.is_none() {
             cache.replace(GpuAnticData {
                 inner: Self::create_gpu_data(
-                    &render_device,
-                    &pipeline,
-                    &collisions_agg_pipeline,
+                    render_device,
+                    pipeline,
+                    collisions_agg_pipeline,
                     inner.collisions_agg_texture_size,
                 ),
                 index_count: 0,
@@ -134,7 +135,7 @@ impl RenderAsset for AnticData {
             &inner.memory,
             wgpu::ImageDataLayout {
                 offset: 0,
-                bytes_per_row: Some(std::num::NonZeroU32::new(256 as u32).unwrap()),
+                bytes_per_row: Some(std::num::NonZeroU32::new(256).unwrap()),
                 rows_per_image: None,
             },
             DATA_TEXTURE_SIZE,

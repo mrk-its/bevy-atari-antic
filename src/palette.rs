@@ -16,9 +16,7 @@ impl Default for AtariPalette {
         let colors = colors.map(|c| c.as_linear_rgba_f32()).collect::<Vec<_>>();
 
         let mut arr = [[0f32; 4]; 256];
-        for i in 0..256 {
-            arr[i] = colors[i];
-        }
+        arr.clone_from_slice(&colors[..256]);
         Self(arr)
     }
 }
