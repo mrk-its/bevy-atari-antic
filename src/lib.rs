@@ -244,8 +244,14 @@ impl CollisionsData {
             let guard = &mut self.data.write();
             let dest = guard.as_mut();
             for y in 0..self.texture_size.height as usize {
-                for x in 0..240 {
-                    dest[x] |= data[y << 8 | x];
+                if y == 0 {
+                    for x in 0..240 {
+                        dest[x] = data[y << 8 | x];
+                    }
+                } else {
+                    for x in 0..240 {
+                        dest[x] |= data[y << 8 | x];
+                    }
                 }
             }
         }
