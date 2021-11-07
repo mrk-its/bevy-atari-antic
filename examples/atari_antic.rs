@@ -70,7 +70,7 @@ fn update(
     mut atari_data_assets: ResMut<Assets<AnticData>>,
     query: Query<&Handle<AnticData>>,
     collisions: Res<CollisionsData>,
-    scr_offsets: Res<MemOffsets>
+    scr_offsets: Res<MemOffsets>,
 ) {
     let span = bevy::utils::tracing::span!(bevy::utils::tracing::Level::INFO, "my_span");
     let _entered = span.enter();
@@ -87,13 +87,17 @@ fn update(
             *c = c.wrapping_add(1);
 
             let text = format!("collisions: {:x}", col_agg);
-            text.as_bytes().iter().cloned().map(internal_chr).enumerate().for_each(|(i, c)| {
-                inner.memory[32 * 240 + scr_offsets.0[1] + i + 2] = c;
-            });
+            text.as_bytes()
+                .iter()
+                .cloned()
+                .map(internal_chr)
+                .enumerate()
+                .for_each(|(i, c)| {
+                    inner.memory[32 * 240 + scr_offsets.0[1] + i + 2] = c;
+                });
         }
     }
 }
-
 
 fn internal_chr(c: u8) -> u8 {
     match c {
@@ -104,7 +108,11 @@ fn internal_chr(c: u8) -> u8 {
     }
 }
 
-fn setup(mut commands: Commands, mut atari_data_assets: ResMut<Assets<AnticData>>, mut scr_offsets: ResMut<MemOffsets>) {
+fn setup(
+    mut commands: Commands,
+    mut atari_data_assets: ResMut<Assets<AnticData>>,
+    mut scr_offsets: ResMut<MemOffsets>,
+) {
     let atari_data = atari_data_assets
         .get_mut(ANTIC_DATA_HANDLE.typed::<AnticData>())
         .unwrap();

@@ -238,12 +238,8 @@ impl CollisionsData {
         {
             let buffer_view = slice.get_mapped_range();
             let data: &[u8] = &buffer_view;
-            let data = unsafe {
-                std::slice::from_raw_parts(
-                    data.as_ptr() as *const u64,
-                    data.len() / 8,
-                )
-            };
+            let data =
+                unsafe { std::slice::from_raw_parts(data.as_ptr() as *const u64, data.len() / 8) };
             // bevy::log::info!("data: {:x?}", data);
             let guard = &mut self.data.write();
             let dest = guard.as_mut();
