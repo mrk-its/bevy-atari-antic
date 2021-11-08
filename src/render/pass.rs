@@ -174,7 +174,8 @@ impl Node for AnticPassNode {
                     view: main_texture,
                     resolve_target: None,
                     ops: Operations {
-                        load: LoadOp::Clear(clear_color.into()), // TODO: do not clear?
+                        // load: LoadOp::Clear(clear_color.into()), // TODO: do not clear?
+                        load: LoadOp::Load,
                         store: true,
                     },
                 },
@@ -182,7 +183,8 @@ impl Node for AnticPassNode {
                     view: collisions_texture,
                     resolve_target: None,
                     ops: Operations {
-                        load: LoadOp::Clear(collisions_clear_color.into()), // TODO: do not clear?
+                        // load: LoadOp::Clear(collisions_clear_color.into()), // TODO: do not clear?
+                        load: LoadOp::Load,
                         store: true,
                     },
                 },
@@ -213,15 +215,8 @@ impl Node for AnticPassNode {
     }
 }
 
-pub struct CollisionsAggNode {
-    collisions_data: CollisionsData,
-}
-
-impl CollisionsAggNode {
-    pub fn new(collisions_data: CollisionsData) -> Self {
-        Self { collisions_data }
-    }
-}
+#[derive(Default)]
+pub struct CollisionsAggNode;
 
 impl Node for CollisionsAggNode {
     fn input(&self) -> Vec<SlotInfo> {
@@ -237,7 +232,6 @@ impl Node for CollisionsAggNode {
         render_context: &mut bevy::render2::renderer::RenderContext,
         world: &World,
     ) -> Result<(), NodeRunError> {
-        let assets = world.get_resource::<RenderAssets<AnticData>>().unwrap();
         let collisions_agg_texture = graph.get_input_texture("collisions_agg_texture_view")?;
 
         let clear_color = Color::rgba(0.0, 0.0, 0.0, 0.0);
@@ -252,7 +246,8 @@ impl Node for CollisionsAggNode {
                 view: collisions_agg_texture,
                 resolve_target: None,
                 ops: Operations {
-                    load: LoadOp::Clear(clear_color.into()), // TODO: do not clear?
+                    // load: LoadOp::Clear(clear_color.into()), // TODO: do not clear?
+                    load: LoadOp::Load,
                     store: true,
                 },
             }],
@@ -280,7 +275,28 @@ impl Node for CollisionsAggNode {
                 );
             }
         }
+        Ok(())
+    }
+}
 
+pub struct CollisionsAggReadNode {
+    collisions_data: CollisionsData,
+}
+
+impl CollisionsAggReadNode {
+    pub fn new(collisions_data: CollisionsData) -> Self {
+        Self { collisions_data }
+    }
+}
+
+impl Node for CollisionsAggReadNode {
+    fn run(
+        &self,
+        graph: &mut bevy::render2::render_graph::RenderGraphContext,
+        render_context: &mut bevy::render2::renderer::RenderContext,
+        world: &World,
+    ) -> Result<(), NodeRunError> {
+        let assets = world.get_resource::<RenderAssets<AnticData>>().unwrap();
         let gpu_antic_data =
             if let Some(antic_data) = assets.get(&ANTIC_DATA_HANDLE.typed::<AnticData>()) {
                 antic_data
@@ -289,8 +305,22 @@ impl Node for CollisionsAggNode {
             };
 
         let copy_size = gpu_antic_data.inner.collisions_agg_texture_size;
+        let collisions_agg_render_phase = world
+            .get_resource::<RenderPhase<CollisionsAggPhase>>()
+            .unwrap();
 
         for _item in collisions_agg_render_phase.items.iter() {
+            // we should do this copy befor atari simulation step
+            // doing it now introduces another 1 frame delay for collisions (?)
+            render_context.command_encoder.copy_buffer_to_buffer(
+                &self.collisions_data.buffer,
+                0,
+                &self.collisions_data.buffer2,
+                0,
+                (copy_size.width * copy_size.height) as u64 * crate::CollisionsData::BYTES_PER_PIXEL as u64,
+            );
+            self.collisions_data
+                .read_collisions(&render_context.render_device);
             render_context.command_encoder.copy_texture_to_buffer(
                 gpu_antic_data.inner.collisions_agg_texture.as_image_copy(),
                 wgpu::ImageCopyBuffer {
@@ -308,8 +338,7 @@ impl Node for CollisionsAggNode {
                 },
                 copy_size,
             );
-            self.collisions_data
-                .read_collisions(&render_context.render_device)
+            // signal fence here ?
         }
         Ok(())
     }

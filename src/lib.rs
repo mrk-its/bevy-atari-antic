@@ -37,7 +37,7 @@ pub const ANTIC_DATA_HANDLE: HandleUntyped =
 
 pub use antic_data::AnticData;
 
-use crate::render::pass::{AssetOutputNode, CollisionsAggNode};
+use crate::render::pass::{AssetOutputNode, CollisionsAggNode, CollisionsAggReadNode};
 
 pub struct AtariAnticPlugin;
 
@@ -134,10 +134,8 @@ impl Plugin for AtariAnticPlugin {
             .unwrap();
 
         if true {
-            graph.add_node(
-                "collisions_agg_node",
-                CollisionsAggNode::new(collisions_data),
-            );
+            graph.add_node("collisions_agg_node", CollisionsAggNode::default());
+
             graph
                 .add_node_edge(
                     "collisions_agg_node",
@@ -154,7 +152,18 @@ impl Plugin for AtariAnticPlugin {
                 .unwrap();
 
             graph
-                .add_node_edge("collisions_agg_node", "antic_node")
+                .add_node_edge("antic_node", "collisions_agg_node")
+                .unwrap();
+
+            graph.add_node(
+                "collisions_agg_read_node",
+                CollisionsAggReadNode::new(collisions_data),
+            );
+            graph
+                .add_node_edge("collisions_agg_node", "collisions_agg_read_node")
+                .unwrap();
+            graph
+                .add_node_edge("collisions_agg_read_node", bevy::core_pipeline::node::MAIN_PASS_DEPENDENCIES)
                 .unwrap();
         }
 
@@ -211,6 +220,7 @@ pub struct CollisionsData {
     pub data: Arc<RwLock<[u64; 240]>>,
     texture_size: Extent3d,
     pub(crate) buffer: Buffer,
+    pub(crate) buffer2: Buffer,
 }
 
 impl CollisionsData {
@@ -218,6 +228,13 @@ impl CollisionsData {
     fn new(render_device: &RenderDevice, texture_size: Extent3d) -> Self {
         let buffer = render_device.create_buffer(&BufferDescriptor {
             label: Some("atari collisions buffer"),
+            usage: BufferUsages::COPY_DST | BufferUsages::COPY_SRC,
+            size: ((texture_size.width * texture_size.height) as usize
+                * CollisionsData::BYTES_PER_PIXEL) as u64,
+            mapped_at_creation: false,
+        });
+        let buffer2 = render_device.create_buffer(&BufferDescriptor {
+            label: Some("atari collisions buffer2"),
             usage: BufferUsages::COPY_DST | BufferUsages::MAP_READ,
             size: ((texture_size.width * texture_size.height) as usize
                 * CollisionsData::BYTES_PER_PIXEL) as u64,
@@ -227,10 +244,11 @@ impl CollisionsData {
             data: Arc::new(RwLock::new([0; 240])),
             texture_size,
             buffer,
+            buffer2,
         }
     }
     fn read_collisions(&self, render_device: &RenderDevice) {
-        let buffer = &self.buffer;
+        let buffer = &self.buffer2;
         let slice = buffer.slice(..);
         let map_future = slice.map_async(wgpu::MapMode::Read);
         render_device.poll(wgpu::Maintain::Wait);

@@ -27,4 +27,5 @@ path = "examples/atari_antic.rs"
 [patch.crates-io]
 # wgpu = {git="https://github.com/gfx-rs/wgpu", revision="c824c8"}
 wgpu = {path="../../wgpu/wgpu"}
-glow = {git="https://github.com/mrk-its/glow", branch="read_pixels_array_buffer_view"}
+# glow = {git="https://github.com/mrk-its/glow", branch="read_pixels_array_buffer_view"}
+glow = {path="../../glow"}
