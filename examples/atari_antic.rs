@@ -53,8 +53,8 @@ fn main() {
         .add_startup_system(setup)
         .add_system(update);
 
-    #[cfg(not(target_arch = "wasm32"))]
-    app.add_system(quit_after_few_frames);
+    // #[cfg(not(target_arch = "wasm32"))]
+    // app.add_system(quit_after_few_frames);
     app.run();
 }
 
