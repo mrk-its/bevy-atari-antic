@@ -143,6 +143,9 @@ fn collisions_agg_fragment(
 # ifdef T_32
     let TEXTURE_HEIGHT = 32;
 # endif
+# ifdef T_384
+    let TEXTURE_HEIGHT = 384;
+# endif
 
     let STRIP_WIDTH = 384 / TEXTURE_HEIGHT;
     let px = i32(uv.y * f32(TEXTURE_HEIGHT)) * STRIP_WIDTH;
@@ -151,8 +154,12 @@ fn collisions_agg_fragment(
     var v = vec4<u32>(0u, 0u, 0u, 0u);
     for(var x = 0; x < STRIP_WIDTH; x = x + 1) {
         let t1 = textureLoad(memory, vec2<i32>(px + x, py), 0);
+        let a = t1[0] | (t1[1] << 16u);
+        let b = t1[2] | (t1[3] << 16u);
         let t2 = textureLoad(memory, vec2<i32>(px + x + 1, py), 0);
-        v = v | vec4<u32>(t1[0], t1[1], t2[0], t2[1]);
+        let c = t2[0] | (t2[1] << 16u);
+        let d = t2[2] | (t2[3] << 16u);
+        v = v | vec4<u32>(a, b, c, d);
     }
     return v;
 }
@@ -445,14 +452,10 @@ fn fragment(
     let p3pl = cond_i32(p3, (player_bits & ~8) << 12u, 0);
 
     let o_CollisionsTarget = vec4<u32>(
-        u32(m0pf | m1pf | m2pf | m3pf) | u32(p0pf | p1pf | p2pf | p3pf) << 16u,
-        u32(m0pl | m1pl | m2pl | m3pl) | u32(p0pl | p1pl | p2pl | p3pl) << 16u,
-        u32(0),
-        u32(0),
+        u32(m0pf | m1pf | m2pf | m3pf),
+        u32(p0pf | p1pf | p2pf | p3pf),
+        u32(m0pl | m1pl | m2pl | m3pl),
+        u32(p0pl | p1pl | p2pl | p3pl),
     );
-
-    var out: FragmentOutput;
-    out.color = palette.palette[color_reg];
-    out.collisions = o_CollisionsTarget;
-    return out;
+    return FragmentOutput(palette.palette[color_reg], o_CollisionsTarget);
 }

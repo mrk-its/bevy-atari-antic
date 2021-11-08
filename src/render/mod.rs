@@ -186,7 +186,7 @@ impl AnticData {
         let collisions_texture_descriptor = wgpu::TextureDescriptor {
             size: COLLISIONS_TEXTURE_SIZE,
             dimension: TextureDimension::D2,
-            format: wgpu::TextureFormat::Rg32Uint,
+            format: wgpu::TextureFormat::Rgba16Uint,
             label: Some("collisions_texture"),
             mip_level_count: 1,
             sample_count: 1,
@@ -393,7 +393,7 @@ impl SpecializedPipeline for AnticPipeline {
                         write_mask: ColorWrites::ALL,
                     },
                     ColorTargetState {
-                        format: TextureFormat::Rg32Uint,
+                        format: TextureFormat::Rgba16Uint,
                         blend: None,
                         write_mask: ColorWrites::ALL,
                     },
@@ -455,7 +455,7 @@ impl SpecializedPipeline for CollisionsAggPipeline {
             },
             fragment: Some(FragmentState {
                 shader: ANTIC_SHADER_HANDLE.typed::<Shader>(),
-                shader_defs: vec!["T_8".to_string()],
+                shader_defs: vec![format!("T_{}", crate::COLLISIONS_AGG_TEXTURE_SIZE.height)],
                 entry_point: "collisions_agg_fragment".into(),
                 targets: vec![ColorTargetState {
                     format: TextureFormat::Rgba32Uint,

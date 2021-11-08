@@ -41,7 +41,7 @@ use crate::render::pass::{AssetOutputNode, CollisionsAggNode};
 
 pub struct AtariAnticPlugin;
 
-pub const COLLISIONS_AGG_TEXTURE_SIZE: Extent3d = Extent3d {
+pub(crate) const COLLISIONS_AGG_TEXTURE_SIZE: Extent3d = Extent3d {
     width: 128,
     height: 8,
     depth_or_array_layers: 1,
