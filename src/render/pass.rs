@@ -292,7 +292,7 @@ impl CollisionsAggReadNode {
 impl Node for CollisionsAggReadNode {
     fn run(
         &self,
-        graph: &mut bevy::render2::render_graph::RenderGraphContext,
+        _graph: &mut bevy::render2::render_graph::RenderGraphContext,
         render_context: &mut bevy::render2::renderer::RenderContext,
         world: &World,
     ) -> Result<(), NodeRunError> {
@@ -310,15 +310,8 @@ impl Node for CollisionsAggReadNode {
             .unwrap();
 
         for _item in collisions_agg_render_phase.items.iter() {
-            // we should do this copy befor atari simulation step
-            // doing it now introduces another 1 frame delay for collisions (?)
-            render_context.command_encoder.copy_buffer_to_buffer(
-                &self.collisions_data.buffer,
-                0,
-                &self.collisions_data.buffer2,
-                0,
-                (copy_size.width * copy_size.height) as u64 * crate::CollisionsData::BYTES_PER_PIXEL as u64,
-            );
+            // consider moving this reading befor emulation step
+            // for now we have additional 1 frame delay
             self.collisions_data
                 .read_collisions(&render_context.render_device);
             render_context.command_encoder.copy_texture_to_buffer(
@@ -338,7 +331,6 @@ impl Node for CollisionsAggReadNode {
                 },
                 copy_size,
             );
-            // signal fence here ?
         }
         Ok(())
     }
