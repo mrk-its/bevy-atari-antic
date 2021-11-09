@@ -162,8 +162,8 @@ impl Node for AnticPassNode {
         let main_texture = graph.get_input_texture("main_texture_view")?;
         let collisions_texture = graph.get_input_texture("collisions_texture_view")?;
 
-        let clear_color = Color::rgba(0.1, 0.1, 0.1, 1.0);
-        let collisions_clear_color = Color::rgba(0.0, 0.0, 0.0, 0.0);
+        let _clear_color = Color::rgba(0.1, 0.1, 0.1, 1.0);
+        let _collisions_clear_color = Color::rgba(0.0, 0.0, 0.0, 0.0);
 
         let render_phase = world.get_resource::<RenderPhase<AnticPhase>>().unwrap();
 
@@ -234,7 +234,7 @@ impl Node for CollisionsAggNode {
     ) -> Result<(), NodeRunError> {
         let collisions_agg_texture = graph.get_input_texture("collisions_agg_texture_view")?;
 
-        let clear_color = Color::rgba(0.0, 0.0, 0.0, 0.0);
+        let _clear_color = Color::rgba(0.0, 0.0, 0.0, 0.0);
 
         let collisions_agg_render_phase = world
             .get_resource::<RenderPhase<CollisionsAggPhase>>()
