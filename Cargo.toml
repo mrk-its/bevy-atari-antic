@@ -14,6 +14,8 @@ wgpu = { version = "0.11", features = ["spirv", "webgl"] }
 parking_lot = "0.11"
 futures-lite = "1.11.3"
 
+# workaround for symver violation there
+tracing-wasm = "=0.2.0"
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 web-sys = { version = "0.3", features = ["Storage"]}
 
@@ -28,6 +30,7 @@ path = "examples/atari_antic.rs"
 
 [patch.crates-io]
 # wgpu = {git="https://github.com/gfx-rs/wgpu", revision="c824c8"}
-wgpu = {path="../../wgpu/wgpu"}
+# wgpu = {path="../../wgpu/wgpu"}
+wgpu = {git="https://github.com/mrk-its/wgpu", branch="misc"}
 glow = {git="https://github.com/mrk-its/glow", branch="read_pixels_into_buffer_offset"}
 # glow = {path="../../glow"}
