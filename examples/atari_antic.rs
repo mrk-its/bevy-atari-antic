@@ -279,7 +279,7 @@ fn setup(
             scale: Vec3::new(2.0, 2.0, 2.0),
             ..Default::default()
         },
-        global_transform: Default::default(),
+        ..Default::default()
     });
 
     commands.spawn_bundle(OrthographicCameraBundle::new_2d());

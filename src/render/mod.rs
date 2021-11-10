@@ -21,7 +21,7 @@ use wgpu::BufferDescriptor;
 pub use crate::antic_data::{AnticData, AnticDataInner};
 use crate::ANTIC_SHADER_HANDLE;
 
-use crevice::std140::{AsStd140, Std140};
+use bevy::utils::crevice::std140::{AsStd140, Std140};
 
 #[derive(Clone)]
 pub struct GpuAnticDataInner {

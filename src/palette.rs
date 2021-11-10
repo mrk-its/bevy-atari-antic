@@ -1,5 +1,5 @@
 use bytemuck::{Pod, Zeroable};
-use crevice::std140::{Std140, Std140Padded};
+use bevy::utils::crevice::std140::{Std140, Std140Padded};
 
 use bevy::render2::color::Color;
 
