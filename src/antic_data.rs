@@ -17,7 +17,7 @@ pub struct AnticDataInner {
     pub custom: Vec<[f32; 4]>,
     pub uvs: Vec<[f32; 2]>,
     pub indices: Vec<u16>,
-    pub collisions_agg_texture_size: Extent3d,
+    pub collisions_agg_texture_size: Option<Extent3d>,
 }
 
 #[derive(TypeUuid, Clone)]
@@ -29,7 +29,7 @@ pub struct AnticData {
 const GTIA_REGS_MEMORY: usize = 240 * 32;
 
 impl AnticData {
-    pub fn new(collisions_agg_texture_size: Extent3d) -> Self {
+    pub fn new(collisions_agg_texture_size: Option<Extent3d>) -> Self {
         let mut memory = Vec::with_capacity(GTIA_REGS_MEMORY + 256 * 11 * 4 * 4);
         memory.resize(memory.capacity(), 0);
         Self {

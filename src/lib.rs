@@ -39,7 +39,9 @@ pub use antic_data::AnticData;
 
 use crate::render::pass::{AssetOutputNode, CollisionsAggNode, CollisionsAggReadNode};
 
-pub struct AtariAnticPlugin;
+pub struct AtariAnticPlugin {
+    pub collisions: bool,
+}
 
 pub(crate) const COLLISIONS_AGG_TEXTURE_SIZE: Extent3d = Extent3d {
     width: 128,
@@ -64,7 +66,16 @@ impl Plugin for AtariAnticPlugin {
         info!("projection matrix: {:?}", projection_matrix);
 
         let render_device = app.world.get_resource::<RenderDevice>().unwrap();
-        let collisions_data = CollisionsData::new(render_device, COLLISIONS_AGG_TEXTURE_SIZE);
+
+        let collisions_data = if self.collisions {
+            Some(CollisionsData::new(
+                render_device,
+                COLLISIONS_AGG_TEXTURE_SIZE,
+            ))
+        } else {
+            None
+        };
+        app.insert_resource(collisions_data.clone());
 
         let mut shaders = app.world.get_resource_mut::<Assets<Shader>>().unwrap();
         let antic_shader = Shader::from_wgsl(include_str!("render/antic.wgsl"));
@@ -72,14 +83,17 @@ impl Plugin for AtariAnticPlugin {
 
         app.add_asset::<AnticData>()
             // .add_asset::<AnticMesh>()
-            .insert_resource(collisions_data.clone())
             .add_plugin(ExtractComponentPlugin::<Handle<AnticData>>::default())
             .add_plugin(RenderAssetPlugin::<AnticData>::default());
 
         let mut atari_data_assets = app.world.get_resource_mut::<Assets<AnticData>>().unwrap();
         atari_data_assets.set_untracked(
             ANTIC_DATA_HANDLE,
-            AnticData::new(COLLISIONS_AGG_TEXTURE_SIZE),
+            AnticData::new(if self.collisions {
+                Some(COLLISIONS_AGG_TEXTURE_SIZE)
+            } else {
+                None
+            }),
         );
 
         let render_app = app.sub_app(RenderApp);
@@ -133,7 +147,7 @@ impl Plugin for AtariAnticPlugin {
             )
             .unwrap();
 
-        if true {
+        if self.collisions {
             graph.add_node("collisions_agg_node", CollisionsAggNode::default());
 
             graph
@@ -157,7 +171,7 @@ impl Plugin for AtariAnticPlugin {
 
             graph.add_node(
                 "collisions_agg_read_node",
-                CollisionsAggReadNode::new(collisions_data),
+                CollisionsAggReadNode::new(collisions_data.unwrap()),
             );
             graph
                 .add_node_edge("collisions_agg_node", "collisions_agg_read_node")

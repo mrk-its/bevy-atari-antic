@@ -12,12 +12,13 @@ use bevy::{
 };
 use wgpu::{LoadOp, Operations, RenderPassColorAttachment, RenderPassDescriptor};
 
-use crate::{AnticData, CollisionsData, ANTIC_DATA_HANDLE};
+use crate::{AnticData, CollisionsData};
 pub struct AnticPhase {
     pub pipeline: CachedPipelineId,
     pub entity: Entity,
     pub draw_function: DrawFunctionId,
     pub antic_data_handle: Handle<AnticData>,
+    pub collisions: bool,
 }
 pub struct CollisionsAggPhase {
     pub pipeline: CachedPipelineId,
@@ -110,13 +111,14 @@ impl Node for AssetOutputNode<AnticData> {
         world: &World,
     ) -> Result<(), NodeRunError> {
         self.set_output(world, &mut |asset| {
+            let collisions = asset.inner.collisions.as_ref().unwrap();
             graph.set_output(
                 "collisions_texture_view",
-                asset.inner.collisions_texture_view.clone(),
+                collisions.collisions_texture_view.clone(),
             )?;
             graph.set_output(
                 "collisions_agg_texture_view",
-                asset.inner.collisions_agg_texture_view.clone(),
+                collisions.collisions_agg_texture_view.clone(),
             )?;
             Ok(())
         })
@@ -166,11 +168,39 @@ impl Node for AnticPassNode {
         let _collisions_clear_color = Color::rgba(0.0, 0.0, 0.0, 0.0);
 
         let render_phase = world.get_resource::<RenderPhase<AnticPhase>>().unwrap();
-
-        let pass_descriptor = RenderPassDescriptor {
-            label: Some("antic_main_pass"),
-            color_attachments: &[
-                RenderPassColorAttachment {
+        for item in render_phase.items.iter() {
+            let main_texture_attachment = RenderPassColorAttachment {
+                view: main_texture,
+                resolve_target: None,
+                ops: Operations {
+                    // load: LoadOp::Clear(clear_color.into()), // TODO: do not clear?
+                    load: LoadOp::Load,
+                    store: true,
+                },
+            };
+            let color_attachments = if item.collisions {
+                vec![
+                    RenderPassColorAttachment {
+                        view: main_texture,
+                        resolve_target: None,
+                        ops: Operations {
+                            // load: LoadOp::Clear(clear_color.into()), // TODO: do not clear?
+                            load: LoadOp::Load,
+                            store: true,
+                        },
+                    },
+                    RenderPassColorAttachment {
+                        view: collisions_texture,
+                        resolve_target: None,
+                        ops: Operations {
+                            // load: LoadOp::Clear(collisions_clear_color.into()), // TODO: do not clear?
+                            load: LoadOp::Load,
+                            store: true,
+                        },
+                    },
+                ]
+            } else {
+                vec![RenderPassColorAttachment {
                     view: main_texture,
                     resolve_target: None,
                     ops: Operations {
@@ -178,30 +208,23 @@ impl Node for AnticPassNode {
                         load: LoadOp::Load,
                         store: true,
                     },
-                },
-                RenderPassColorAttachment {
-                    view: collisions_texture,
-                    resolve_target: None,
-                    ops: Operations {
-                        // load: LoadOp::Clear(collisions_clear_color.into()), // TODO: do not clear?
-                        load: LoadOp::Load,
-                        store: true,
-                    },
-                },
-            ],
-            depth_stencil_attachment: None,
-        };
+                }]
+            };
+            let pass_descriptor = RenderPassDescriptor {
+                label: Some("antic_main_pass"),
+                color_attachments: &color_attachments,
+                depth_stencil_attachment: None,
+            };
 
-        {
-            let draw_functions = world.get_resource::<DrawFunctions<AnticPhase>>().unwrap();
+            {
+                let draw_functions = world.get_resource::<DrawFunctions<AnticPhase>>().unwrap();
 
-            let render_pass = render_context
-                .command_encoder
-                .begin_render_pass(&pass_descriptor);
-            let mut draw_functions = draw_functions.write();
+                let render_pass = render_context
+                    .command_encoder
+                    .begin_render_pass(&pass_descriptor);
+                let mut draw_functions = draw_functions.write();
 
-            let mut tracked_pass = TrackedRenderPass::new(render_pass);
-            for item in render_phase.items.iter() {
+                let mut tracked_pass = TrackedRenderPass::new(render_pass);
                 let draw_function = draw_functions.get_mut(item.draw_function).unwrap();
                 draw_function.draw(
                     world,
@@ -239,33 +262,32 @@ impl Node for CollisionsAggNode {
         let collisions_agg_render_phase = world
             .get_resource::<RenderPhase<CollisionsAggPhase>>()
             .unwrap();
+        for item in collisions_agg_render_phase.items.iter() {
+            let collisions_agg_pass_descriptor = RenderPassDescriptor {
+                label: Some("collisioons_agg_pass"),
+                color_attachments: &[RenderPassColorAttachment {
+                    view: collisions_agg_texture,
+                    resolve_target: None,
+                    ops: Operations {
+                        // load: LoadOp::Clear(clear_color.into()), // TODO: do not clear?
+                        load: LoadOp::Load,
+                        store: true,
+                    },
+                }],
+                depth_stencil_attachment: None,
+            };
 
-        let collisions_agg_pass_descriptor = RenderPassDescriptor {
-            label: Some("collisioons_agg_pass"),
-            color_attachments: &[RenderPassColorAttachment {
-                view: collisions_agg_texture,
-                resolve_target: None,
-                ops: Operations {
-                    // load: LoadOp::Clear(clear_color.into()), // TODO: do not clear?
-                    load: LoadOp::Load,
-                    store: true,
-                },
-            }],
-            depth_stencil_attachment: None,
-        };
+            {
+                let draw_functions = world
+                    .get_resource::<DrawFunctions<CollisionsAggPhase>>()
+                    .unwrap();
 
-        {
-            let draw_functions = world
-                .get_resource::<DrawFunctions<CollisionsAggPhase>>()
-                .unwrap();
+                let render_pass = render_context
+                    .command_encoder
+                    .begin_render_pass(&collisions_agg_pass_descriptor);
+                let mut draw_functions = draw_functions.write();
 
-            let render_pass = render_context
-                .command_encoder
-                .begin_render_pass(&collisions_agg_pass_descriptor);
-            let mut draw_functions = draw_functions.write();
-
-            let mut tracked_pass = TrackedRenderPass::new(render_pass);
-            for item in collisions_agg_render_phase.items.iter() {
+                let mut tracked_pass = TrackedRenderPass::new(render_pass);
                 let draw_function = draw_functions.get_mut(item.draw_function).unwrap();
                 draw_function.draw(
                     world,
@@ -297,25 +319,26 @@ impl Node for CollisionsAggReadNode {
         world: &World,
     ) -> Result<(), NodeRunError> {
         let assets = world.get_resource::<RenderAssets<AnticData>>().unwrap();
-        let gpu_antic_data =
-            if let Some(antic_data) = assets.get(&ANTIC_DATA_HANDLE.typed::<AnticData>()) {
-                antic_data
-            } else {
-                return Ok(());
-            };
-
-        let copy_size = gpu_antic_data.inner.collisions_agg_texture_size;
         let collisions_agg_render_phase = world
             .get_resource::<RenderPhase<CollisionsAggPhase>>()
             .unwrap();
+        for item in collisions_agg_render_phase.items.iter() {
+            let gpu_antic_data =
+                if let Some(antic_data) = assets.get(&item.antic_data_handle) {
+                    antic_data
+                } else {
+                    return Ok(());
+                };
 
-        for _item in collisions_agg_render_phase.items.iter() {
+            let collisions = gpu_antic_data.inner.collisions.as_ref().unwrap();
+            let copy_size = collisions.collisions_agg_texture_size;
+
             // consider moving this reading befor emulation step
             // for now we have additional 1 frame delay
             self.collisions_data
                 .read_collisions(&render_context.render_device);
             render_context.command_encoder.copy_texture_to_buffer(
-                gpu_antic_data.inner.collisions_agg_texture.as_image_copy(),
+                collisions.collisions_agg_texture.as_image_copy(),
                 wgpu::ImageCopyBuffer {
                     buffer: &self.collisions_data.buffer,
                     layout: wgpu::ImageDataLayout {

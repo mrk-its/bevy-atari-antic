@@ -52,7 +52,7 @@ fn main() {
     app.add_plugins(PipelinedDefaultPlugins)
         // .add_plugin(FrameTimeDiagnosticsPlugin::default())
         .insert_resource(MemOffsets([0; 24]))
-        .add_plugin(AtariAnticPlugin)
+        .add_plugin(AtariAnticPlugin {collisions: true})
         .add_startup_system(setup)
         .add_system(update);
 
@@ -72,14 +72,16 @@ fn quit_after_few_frames(mut cnt: Local<u32>, mut app_exit_events: EventWriter<A
 fn update(
     mut atari_data_assets: ResMut<Assets<AnticData>>,
     query: Query<&Handle<AnticData>>,
-    collisions: Res<CollisionsData>,
+    collisions: Res<Option<CollisionsData>>,
     scr_offsets: Res<MemOffsets>,
 ) {
     let span = bevy::utils::tracing::span!(bevy::utils::tracing::Level::INFO, "my_span");
     let _entered = span.enter();
 
-    let collisions = *collisions.data.read();
-    let col_agg = collisions.iter().cloned().reduce(|a, v| a | v).unwrap();
+    let col_agg = (*collisions).as_ref().map(|c| {
+        let collisions = c.data.read();
+        collisions.iter().cloned().reduce(|a, v| a | v).unwrap()
+    }).unwrap_or(0);
 
     for handle in query.iter() {
         if let Some(atari_data) = atari_data_assets.get_mut(handle) {
