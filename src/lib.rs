@@ -19,7 +19,6 @@ use bevy::{
     },
 };
 
-
 mod antic_data;
 mod palette;
 mod render;
@@ -164,7 +163,10 @@ impl Plugin for AtariAnticPlugin {
                 .add_node_edge("collisions_agg_node", "collisions_agg_read_node")
                 .unwrap();
             graph
-                .add_node_edge("collisions_agg_read_node", bevy::core_pipeline::node::MAIN_PASS_DEPENDENCIES)
+                .add_node_edge(
+                    "collisions_agg_read_node",
+                    bevy::core_pipeline::node::MAIN_PASS_DEPENDENCIES,
+                )
                 .unwrap();
         }
 

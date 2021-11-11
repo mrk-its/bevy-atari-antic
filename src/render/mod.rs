@@ -6,12 +6,14 @@ use bevy::{
     },
     prelude::Handle,
     render2::{
+        crevice::std140::{AsStd140, Std140},
         render_asset::{PrepareAssetError, RenderAsset, RenderAssets},
         render_phase::{DrawFunctions, RenderCommand, RenderPhase, TrackedRenderPass},
         render_resource::*,
         renderer::{RenderDevice, RenderQueue},
     },
 };
+
 pub mod pass;
 use crate::palette::AtariPalette;
 use pass::{AnticPhase, CollisionsAggPhase};
@@ -20,8 +22,6 @@ use wgpu::BufferDescriptor;
 
 pub use crate::antic_data::{AnticData, AnticDataInner};
 use crate::ANTIC_SHADER_HANDLE;
-
-use bevy::utils::crevice::std140::{AsStd140, Std140};
 
 #[derive(Clone)]
 pub struct GpuAnticDataInner {

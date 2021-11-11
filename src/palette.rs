@@ -1,7 +1,9 @@
 use bytemuck::{Pod, Zeroable};
-use bevy::utils::crevice::std140::{Std140, Std140Padded};
 
-use bevy::render2::color::Color;
+use bevy::render2::{
+    color::Color,
+    crevice::std140::{Std140, Std140Padded},
+};
 
 #[repr(C)]
 #[derive(Debug, Clone, Copy, Zeroable, Pod)]
