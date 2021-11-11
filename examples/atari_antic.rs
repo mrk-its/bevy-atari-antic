@@ -31,12 +31,15 @@ fn main() {
     #[cfg(target_arch = "wasm32")]
     {
         let local_storage = web_sys::window().unwrap().local_storage().unwrap().unwrap();
-        if let Ok(Some(log_filter)) = local_storage.get_item("log") {
-            app.insert_resource(bevy::log::LogSettings {
-                filter: log_filter,
-                level: bevy::utils::tracing::Level::INFO,
-            });
-        }
+        let log_filter = if let Ok(Some(log_filter)) = local_storage.get_item("log") {
+            log_filter
+        } else {
+            "info".to_string()
+        };
+        app.insert_resource(bevy::log::LogSettings {
+            filter: log_filter,
+            level: bevy::utils::tracing::Level::DEBUG,
+        });
     }
     #[cfg(not(target_arch = "wasm32"))]
     {
