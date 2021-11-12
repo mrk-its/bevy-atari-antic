@@ -1,8 +1,10 @@
 use std::sync::Arc;
 
 use bevy::math::vec2;
+use bevy::prelude::Handle;
 use bevy::reflect::TypeUuid;
 use bevy::render2::mesh::{Indices, Mesh};
+use bevy::render2::texture::Image;
 use parking_lot::RwLock;
 use wgpu::{Extent3d, PrimitiveTopology};
 
@@ -23,16 +25,21 @@ pub struct AnticDataInner {
 #[derive(TypeUuid, Clone)]
 #[uuid = "bea612c2-68ed-4432-8d9c-f03ebea97043"]
 pub struct AnticData {
+    pub main_image_handle: Handle<Image>,
     pub inner: Arc<RwLock<AnticDataInner>>,
 }
 
 const GTIA_REGS_MEMORY: usize = 240 * 32;
 
 impl AnticData {
-    pub fn new(collisions_agg_texture_size: Option<Extent3d>) -> Self {
+    pub fn new(
+        main_image_handle: Handle<Image>,
+        collisions_agg_texture_size: Option<Extent3d>,
+    ) -> Self {
         let mut memory = Vec::with_capacity(GTIA_REGS_MEMORY + 256 * 11 * 4 * 4);
         memory.resize(memory.capacity(), 0);
         Self {
+            main_image_handle,
             inner: Arc::new(RwLock::new(AnticDataInner {
                 memory,
                 memory_used: 0,

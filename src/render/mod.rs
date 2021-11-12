@@ -1,18 +1,8 @@
 #![allow(clippy::type_complexity)]
-use bevy::{
-    ecs::{
+use bevy::{ecs::{
         prelude::*,
         system::{lifetimeless::*, SystemParamItem},
-    },
-    prelude::Handle,
-    render2::{
-        crevice::std140::{AsStd140, Std140},
-        render_asset::{PrepareAssetError, RenderAsset, RenderAssets},
-        render_phase::{DrawFunctions, RenderCommand, RenderPhase, TrackedRenderPass},
-        render_resource::*,
-        renderer::{RenderDevice, RenderQueue},
-    },
-};
+    }, prelude::Handle, render2::{crevice::std140::{AsStd140, Std140}, render_asset::{PrepareAssetError, RenderAsset, RenderAssets}, render_phase::{DrawFunctions, RenderCommand, RenderPhase, TrackedRenderPass}, render_resource::*, renderer::{RenderDevice, RenderQueue}, texture::Image}, utils::HashMap};
 
 pub mod pass;
 use crate::palette::AtariPalette;
@@ -41,6 +31,7 @@ pub struct GpuAnticDataInner {
     index_buffer: Buffer,
     vertex_buffer: Buffer,
     data_texture: Texture,
+    main_image_handle: Handle<Image>,
     main_bind_group: BindGroup,
     _data_texture_view: TextureView,
     collisions: Option<GpuAnticCollisionsData>,
@@ -72,7 +63,7 @@ impl RenderAsset for AnticData {
         SRes<RenderQueue>,
         SRes<AnticPipeline>,
         SRes<CollisionsAggPipeline>,
-        SResMut<Option<GpuAnticData>>,
+        SResMut<HashMap<Handle<Image>, GpuAnticData>>,
     );
     fn extract_asset(&self) -> Self::ExtractedAsset {
         self.clone()
@@ -83,21 +74,19 @@ impl RenderAsset for AnticData {
         (render_device, render_queue, pipeline, collisions_agg_pipeline, cache): &mut SystemParamItem<Self::Param>,
     ) -> Result<Self::PreparedAsset, PrepareAssetError<Self::ExtractedAsset>> {
         let inner = extracted_asset.inner.read();
-
-        if cache.is_none() {
-            cache.replace(GpuAnticData {
+        let entry = cache.entry(extracted_asset.main_image_handle.clone());
+        let main_image_handle = extracted_asset.main_image_handle.clone();
+        let gpu_data = entry.or_insert_with(|| {
+            let gpu_data = GpuAnticData {
                 inner: Self::create_gpu_data(
                     render_device,
                     pipeline,
+                    main_image_handle,
                     Some(collisions_agg_pipeline),
                     inner.collisions_agg_texture_size,
                 ),
                 index_count: 0,
-            });
-
-            // one time initialization of palette buffer
-
-            let gpu_data = (**cache).as_mut().unwrap();
+            };
             render_queue.write_buffer(
                 &gpu_data.inner.palette_buffer,
                 0,
@@ -121,9 +110,42 @@ impl RenderAsset for AnticData {
                     &vertex_data,
                 );
             }
-        }
 
-        let mut gpu_data = (**cache).as_mut().unwrap();
+            gpu_data
+        });
+
+        // if cache.is_none() {
+        //     cache.replace();
+
+        //     // one time initialization of palette buffer
+
+        //     let gpu_data = (**cache).as_mut().unwrap();
+        //     render_queue.write_buffer(
+        //         &gpu_data.inner.palette_buffer,
+        //         0,
+        //         inner.palette.as_std140().as_bytes(),
+        //     );
+        //     if let Some(collisions) = &gpu_data.inner.collisions {
+        //         // and collisions vertex / index buffer
+        //         let mesh = extracted_asset.create_collisions_agg_mesh();
+        //         let vertex_data = mesh.get_vertex_buffer_data();
+        //         let index_data = mesh.get_index_buffer_bytes();
+        //         if let Some(index_data) = index_data {
+        //             render_queue.write_buffer(
+        //                 &collisions.collisions_agg_index_buffer,
+        //                 0,
+        //                 index_data,
+        //             );
+        //         }
+        //         render_queue.write_buffer(
+        //             &collisions.collisions_agg_vertex_buffer,
+        //             0,
+        //             &vertex_data,
+        //         );
+        //     }
+        // }
+
+        // let mut gpu_data = (**cache).as_mut().unwrap();
 
         // TODO - mesh change detection
 
@@ -155,6 +177,7 @@ impl AnticData {
     fn create_gpu_data(
         render_device: &RenderDevice,
         pipeline: &AnticPipeline,
+        main_image_handle: Handle<Image>,
         collisions_agg_pipeline: Option<&CollisionsAggPipeline>,
         collisions_agg_texture_size: Option<Extent3d>,
     ) -> Arc<GpuAnticDataInner> {
@@ -280,6 +303,7 @@ impl AnticData {
         };
 
         Arc::new(GpuAnticDataInner {
+            main_image_handle,
             palette_buffer,
             index_buffer,
             vertex_buffer,
@@ -384,11 +408,6 @@ impl SpecializedPipeline for AnticPipeline {
             vec![
                 ColorTargetState {
                     format: TextureFormat::Rgba8UnormSrgb,
-                    blend: None,
-                    write_mask: ColorWrites::ALL,
-                },
-                ColorTargetState {
-                    format: TextureFormat::Rgba16Uint,
                     blend: None,
                     write_mask: ColorWrites::ALL,
                 },
@@ -543,6 +562,7 @@ pub fn queue_meshes(
             AnticPipelineKey { collisions },
         );
         render_phase.add(AnticPhase {
+            main_image_handle: atari_data.inner.main_image_handle.clone(),
             collisions,
             pipeline,
             entity,

@@ -1,12 +1,10 @@
+pub use wgpu;
 use futures_lite::future;
 use parking_lot::RwLock;
 use std::sync::Arc;
 use wgpu::BufferDescriptor;
 
-use bevy::{
-    prelude::{info, AddAsset, App, Assets, Handle, HandleUntyped, Plugin},
-    reflect::TypeUuid,
-    render2::{
+use bevy::{prelude::{info, AddAsset, App, Assets, Handle, HandleUntyped, Plugin}, reflect::TypeUuid, render2::{
         camera::{CameraProjection, OrthographicProjection, WindowOrigin},
         render_asset::RenderAssetPlugin,
         render_component::ExtractComponentPlugin,
@@ -16,8 +14,7 @@ use bevy::{
         renderer::RenderDevice,
         texture::Image,
         RenderApp, RenderStage,
-    },
-};
+    }, utils::HashMap};
 
 mod antic_data;
 mod palette;
@@ -29,25 +26,36 @@ const ANTIC_SHADER_HANDLE: HandleUntyped =
 
 // Public Interface
 
-pub const ANTIC_IMAGE_HANDLE: HandleUntyped =
-    HandleUntyped::weak_from_u64(Image::TYPE_UUID, 13064265395354330662);
-
-pub const ANTIC_DATA_HANDLE: HandleUntyped =
-    HandleUntyped::weak_from_u64(AnticData::TYPE_UUID, 11501023916499139379);
-
 pub use antic_data::AnticData;
 
-use crate::render::pass::{AssetOutputNode, CollisionsAggNode, CollisionsAggReadNode};
+use crate::render::pass::{CollisionsAggNode, CollisionsAggReadNode};
 
 pub struct AtariAnticPlugin {
     pub collisions: bool,
 }
 
-pub(crate) const COLLISIONS_AGG_TEXTURE_SIZE: Extent3d = Extent3d {
+const COLLISIONS_AGG_TEXTURE_SIZE: Extent3d = Extent3d {
     width: 128,
     height: 8,
     depth_or_array_layers: 1,
 };
+
+pub fn create_main_image(images: &mut Assets<Image>) -> Handle<Image> {
+    let mut image = Image::new(
+        Extent3d {
+            width: 384,
+            height: 240,
+            depth_or_array_layers: 1,
+        },
+        wgpu::TextureDimension::D2,
+        vec![128; 384 * 240 * 4],
+        wgpu::TextureFormat::Rgba8UnormSrgb,
+    );
+    image.texture_descriptor.usage = wgpu::TextureUsages::TEXTURE_BINDING
+        | wgpu::TextureUsages::RENDER_ATTACHMENT
+        | wgpu::TextureUsages::COPY_DST;
+    images.add(image)
+}
 
 impl Plugin for AtariAnticPlugin {
     fn build(&self, app: &mut App) {
@@ -86,16 +94,6 @@ impl Plugin for AtariAnticPlugin {
             .add_plugin(ExtractComponentPlugin::<Handle<AnticData>>::default())
             .add_plugin(RenderAssetPlugin::<AnticData>::default());
 
-        let mut atari_data_assets = app.world.get_resource_mut::<Assets<AnticData>>().unwrap();
-        atari_data_assets.set_untracked(
-            ANTIC_DATA_HANDLE,
-            AnticData::new(if self.collisions {
-                Some(COLLISIONS_AGG_TEXTURE_SIZE)
-            } else {
-                None
-            }),
-        );
-
         let render_app = app.sub_app(RenderApp);
         render_app
             .init_resource::<DrawFunctions<AnticPhase>>()
@@ -104,7 +102,7 @@ impl Plugin for AtariAnticPlugin {
             .init_resource::<RenderPhase<CollisionsAggPhase>>()
             .init_resource::<render::AnticPipeline>()
             .init_resource::<render::CollisionsAggPipeline>()
-            .init_resource::<Option<render::GpuAnticData>>()
+            .init_resource::<HashMap<Handle<Image>, render::GpuAnticData>>()
             .init_resource::<SpecializedPipelines<render::AnticPipeline>>()
             .init_resource::<SpecializedPipelines<render::CollisionsAggPipeline>>()
             .add_render_command::<AnticPhase, render::SetAnticPipeline>()
@@ -122,30 +120,30 @@ impl Plugin for AtariAnticPlugin {
             )
             .unwrap();
 
-        graph.add_node(
-            "main_texture_node",
-            AssetOutputNode::new(ANTIC_IMAGE_HANDLE.typed::<Image>()),
-        );
-        graph
-            .add_slot_edge(
-                "main_texture_node",
-                "texture_view",
-                "antic_node",
-                "main_texture_view",
-            )
-            .unwrap();
-        graph.add_node(
-            "antic_data_node",
-            AssetOutputNode::new(ANTIC_DATA_HANDLE.typed::<AnticData>()),
-        );
-        graph
-            .add_slot_edge(
-                "antic_data_node",
-                "collisions_texture_view",
-                "antic_node",
-                "collisions_texture_view",
-            )
-            .unwrap();
+        // graph.add_node(
+        //     "main_texture_node",
+        //     AssetOutputNode::new(ANTIC_IMAGE_HANDLE.typed::<Image>()),
+        // );
+        // graph
+        //     .add_slot_edge(
+        //         "main_texture_node",
+        //         "texture_view",
+        //         "antic_node",
+        //         "main_texture_view",
+        //     )
+        //     .unwrap();
+        // graph.add_node(
+        //     "antic_data_node",
+        //     AssetOutputNode::new(ANTIC_DATA_HANDLE.typed::<AnticData>()),
+        // );
+        // graph
+        //     .add_slot_edge(
+        //         "antic_data_node",
+        //         "collisions_texture_view",
+        //         "antic_node",
+        //         "collisions_texture_view",
+        //     )
+        //     .unwrap();
 
         if self.collisions {
             graph.add_node("collisions_agg_node", CollisionsAggNode::default());
@@ -156,14 +154,14 @@ impl Plugin for AtariAnticPlugin {
                     bevy::core_pipeline::node::MAIN_PASS_DEPENDENCIES,
                 )
                 .unwrap();
-            graph
-                .add_slot_edge(
-                    "antic_data_node",
-                    "collisions_agg_texture_view",
-                    "collisions_agg_node",
-                    "collisions_agg_texture_view",
-                )
-                .unwrap();
+            // graph
+            //     .add_slot_edge(
+            //         "antic_data_node",
+            //         "collisions_agg_texture_view",
+            //         "collisions_agg_node",
+            //         "collisions_agg_texture_view",
+            //     )
+            //     .unwrap();
 
             graph
                 .add_node_edge("antic_node", "collisions_agg_node")
@@ -183,23 +181,6 @@ impl Plugin for AtariAnticPlugin {
                 )
                 .unwrap();
         }
-
-        let mut image = Image::new(
-            Extent3d {
-                width: 384,
-                height: 240,
-                depth_or_array_layers: 1,
-            },
-            wgpu::TextureDimension::D2,
-            vec![128; 384 * 240 * 4],
-            wgpu::TextureFormat::Rgba8UnormSrgb,
-        );
-        image.texture_descriptor.usage = wgpu::TextureUsages::TEXTURE_BINDING
-            | wgpu::TextureUsages::RENDER_ATTACHMENT
-            | wgpu::TextureUsages::COPY_DST;
-
-        let mut images = app.world.get_resource_mut::<Assets<Image>>().unwrap();
-        images.set_untracked(ANTIC_IMAGE_HANDLE, image);
     }
 }
 

@@ -18,6 +18,7 @@ pub struct AnticPhase {
     pub entity: Entity,
     pub draw_function: DrawFunctionId,
     pub antic_data_handle: Handle<AnticData>,
+    pub main_image_handle: Handle<Image>,
     pub collisions: bool,
 }
 pub struct CollisionsAggPhase {
@@ -142,18 +143,18 @@ impl Node for AssetOutputNode<AnticData> {
 pub struct AnticPassNode;
 
 impl Node for AnticPassNode {
-    fn input(&self) -> Vec<SlotInfo> {
-        vec![
-            SlotInfo {
-                name: "main_texture_view".into(),
-                slot_type: SlotType::TextureView,
-            },
-            SlotInfo {
-                name: "collisions_texture_view".into(),
-                slot_type: SlotType::TextureView,
-            },
-        ]
-    }
+    // fn input(&self) -> Vec<SlotInfo> {
+    //     vec![
+    //         SlotInfo {
+    //             name: "main_texture_view".into(),
+    //             slot_type: SlotType::TextureView,
+    //         },
+    //         SlotInfo {
+    //             name: "collisions_texture_view".into(),
+    //             slot_type: SlotType::TextureView,
+    //         },
+    //     ]
+    // }
 
     fn run(
         &self,
@@ -161,16 +162,22 @@ impl Node for AnticPassNode {
         render_context: &mut bevy::render2::renderer::RenderContext,
         world: &World,
     ) -> Result<(), NodeRunError> {
-        let main_texture = graph.get_input_texture("main_texture_view")?;
-        let collisions_texture = graph.get_input_texture("collisions_texture_view")?;
+        let image_assets = world.get_resource::<RenderAssets<Image>>().unwrap();
+        // let main_texture = graph.get_input_texture("main_texture_view")?;
 
         let _clear_color = Color::rgba(0.1, 0.1, 0.1, 1.0);
         let _collisions_clear_color = Color::rgba(0.0, 0.0, 0.0, 0.0);
 
         let render_phase = world.get_resource::<RenderPhase<AnticPhase>>().unwrap();
         for item in render_phase.items.iter() {
+            let main_texture = if let Some(texture) = image_assets.get(&item.main_image_handle) {
+                &texture.texture_view
+            } else {
+                continue
+            };
+
             let main_texture_attachment = RenderPassColorAttachment {
-                view: main_texture,
+                view: &main_texture,
                 resolve_target: None,
                 ops: Operations {
                     // load: LoadOp::Clear(clear_color.into()), // TODO: do not clear?
@@ -179,6 +186,7 @@ impl Node for AnticPassNode {
                 },
             };
             let color_attachments = if item.collisions {
+                let collisions_texture = graph.get_input_texture("collisions_texture_view")?;
                 vec![
                     RenderPassColorAttachment {
                         view: main_texture,
