@@ -1,16 +1,21 @@
+use futures_lite::future;
+
 use bevy::{
     ecs::prelude::*,
     prelude::Handle,
     render2::{
         color::Color,
-        render_asset::{RenderAsset, RenderAssets},
-        render_graph::{Node, NodeRunError, OutputSlotError, SlotInfo, SlotType},
+        render_asset::RenderAssets,
+        render_graph::{
+            Node, NodeRunError, RenderGraphContext,
+        },
         render_phase::{DrawFunctionId, DrawFunctions, PhaseItem, RenderPhase, TrackedRenderPass},
         render_resource::CachedPipelineId,
+        renderer::RenderContext,
         texture::Image,
     },
 };
-use wgpu::{LoadOp, Operations, RenderPassColorAttachment, RenderPassDescriptor};
+use wgpu::{Buffer, LoadOp, Operations, RenderPassColorAttachment, RenderPassDescriptor};
 
 use crate::{AnticData, CollisionsData};
 pub struct AnticPhase {
@@ -56,143 +61,40 @@ impl PhaseItem for CollisionsAggPhase {
     }
 }
 
-pub struct AssetOutputNode<T>
-where
-    T: RenderAsset,
-{
-    handle: Handle<T>,
-}
-
-impl<T> AssetOutputNode<T>
-where
-    T: RenderAsset,
-{
-    pub fn new(handle: Handle<T>) -> Self {
-        Self { handle }
-    }
-    pub fn set_output(
-        &self,
-        world: &World,
-        cb: &mut dyn FnMut(&T::PreparedAsset) -> Result<(), OutputSlotError>,
-    ) -> Result<(), NodeRunError> {
-        let assets = world.get_resource::<RenderAssets<T>>().unwrap();
-        if let Some(asset) = assets.get(&self.handle) {
-            cb(asset)?;
-        };
-        Ok(())
-    }
-}
-
-impl Node for AssetOutputNode<Image> {
-    fn run(
-        &self,
-        graph: &mut bevy::render2::render_graph::RenderGraphContext,
-        _render_context: &mut bevy::render2::renderer::RenderContext,
-        world: &World,
-    ) -> Result<(), NodeRunError> {
-        self.set_output(world, &mut |asset| {
-            graph.set_output("texture_view", asset.texture_view.clone())?;
-            Ok(())
-        })
-    }
-
-    fn output(&self) -> Vec<SlotInfo> {
-        vec![SlotInfo {
-            name: "texture_view".into(),
-            slot_type: SlotType::TextureView,
-        }]
-    }
-}
-
-impl Node for AssetOutputNode<AnticData> {
-    fn run(
-        &self,
-        graph: &mut bevy::render2::render_graph::RenderGraphContext,
-        _render_context: &mut bevy::render2::renderer::RenderContext,
-        world: &World,
-    ) -> Result<(), NodeRunError> {
-        self.set_output(world, &mut |asset| {
-            let collisions = asset.inner.collisions.as_ref().unwrap();
-            graph.set_output(
-                "collisions_texture_view",
-                collisions.collisions_texture_view.clone(),
-            )?;
-            graph.set_output(
-                "collisions_agg_texture_view",
-                collisions.collisions_agg_texture_view.clone(),
-            )?;
-            Ok(())
-        })
-    }
-
-    fn output(&self) -> Vec<SlotInfo> {
-        vec![
-            SlotInfo {
-                name: "collisions_texture_view".into(),
-                slot_type: SlotType::TextureView,
-            },
-            SlotInfo {
-                name: "collisions_agg_texture_view".into(),
-                slot_type: SlotType::TextureView,
-            },
-        ]
-    }
-}
-
 #[derive(Default)]
 pub struct AnticPassNode;
 
 impl Node for AnticPassNode {
-    // fn input(&self) -> Vec<SlotInfo> {
-    //     vec![
-    //         SlotInfo {
-    //             name: "main_texture_view".into(),
-    //             slot_type: SlotType::TextureView,
-    //         },
-    //         SlotInfo {
-    //             name: "collisions_texture_view".into(),
-    //             slot_type: SlotType::TextureView,
-    //         },
-    //     ]
-    // }
-
     fn run(
         &self,
-        graph: &mut bevy::render2::render_graph::RenderGraphContext,
-        render_context: &mut bevy::render2::renderer::RenderContext,
+        _graph: &mut RenderGraphContext,
+        render_context: &mut RenderContext,
         world: &World,
     ) -> Result<(), NodeRunError> {
+        let antic_data_assets = world.get_resource::<RenderAssets<AnticData>>().unwrap();
         let image_assets = world.get_resource::<RenderAssets<Image>>().unwrap();
-        // let main_texture = graph.get_input_texture("main_texture_view")?;
-
-        let _clear_color = Color::rgba(0.1, 0.1, 0.1, 1.0);
-        let _collisions_clear_color = Color::rgba(0.0, 0.0, 0.0, 0.0);
 
         let render_phase = world.get_resource::<RenderPhase<AnticPhase>>().unwrap();
         for item in render_phase.items.iter() {
             let main_texture = if let Some(texture) = image_assets.get(&item.main_image_handle) {
                 &texture.texture_view
             } else {
-                continue
+                continue;
             };
 
-            let main_texture_attachment = RenderPassColorAttachment {
-                view: &main_texture,
-                resolve_target: None,
-                ops: Operations {
-                    // load: LoadOp::Clear(clear_color.into()), // TODO: do not clear?
-                    load: LoadOp::Load,
-                    store: true,
-                },
-            };
             let color_attachments = if item.collisions {
-                let collisions_texture = graph.get_input_texture("collisions_texture_view")?;
+                let gpu_antic_data = antic_data_assets.get(&item.antic_data_handle).unwrap();
+                let collisions_texture = &gpu_antic_data
+                    .inner
+                    .collisions
+                    .as_ref()
+                    .unwrap()
+                    .collisions_texture_view;
                 vec![
                     RenderPassColorAttachment {
                         view: main_texture,
                         resolve_target: None,
                         ops: Operations {
-                            // load: LoadOp::Clear(clear_color.into()), // TODO: do not clear?
                             load: LoadOp::Load,
                             store: true,
                         },
@@ -201,7 +103,6 @@ impl Node for AnticPassNode {
                         view: collisions_texture,
                         resolve_target: None,
                         ops: Operations {
-                            // load: LoadOp::Clear(collisions_clear_color.into()), // TODO: do not clear?
                             load: LoadOp::Load,
                             store: true,
                         },
@@ -212,7 +113,6 @@ impl Node for AnticPassNode {
                     view: main_texture,
                     resolve_target: None,
                     ops: Operations {
-                        // load: LoadOp::Clear(clear_color.into()), // TODO: do not clear?
                         load: LoadOp::Load,
                         store: true,
                     },
@@ -250,20 +150,14 @@ impl Node for AnticPassNode {
 pub struct CollisionsAggNode;
 
 impl Node for CollisionsAggNode {
-    fn input(&self) -> Vec<SlotInfo> {
-        vec![SlotInfo {
-            name: "collisions_agg_texture_view".into(),
-            slot_type: SlotType::TextureView,
-        }]
-    }
-
     fn run(
         &self,
-        graph: &mut bevy::render2::render_graph::RenderGraphContext,
-        render_context: &mut bevy::render2::renderer::RenderContext,
+        _graph: &mut RenderGraphContext,
+        render_context: &mut RenderContext,
         world: &World,
     ) -> Result<(), NodeRunError> {
-        let collisions_agg_texture = graph.get_input_texture("collisions_agg_texture_view")?;
+        // let collisions_agg_texture = graph.get_input_texture("collisions_agg_texture_view")?;
+        let antic_data_assets = world.get_resource::<RenderAssets<AnticData>>().unwrap();
 
         let _clear_color = Color::rgba(0.0, 0.0, 0.0, 0.0);
 
@@ -271,10 +165,13 @@ impl Node for CollisionsAggNode {
             .get_resource::<RenderPhase<CollisionsAggPhase>>()
             .unwrap();
         for item in collisions_agg_render_phase.items.iter() {
+            let gpu_antic_data = antic_data_assets.get(&item.antic_data_handle).unwrap();
+            let collisions_data = gpu_antic_data.inner.collisions.as_ref().unwrap();
+
             let collisions_agg_pass_descriptor = RenderPassDescriptor {
                 label: Some("collisioons_agg_pass"),
                 color_attachments: &[RenderPassColorAttachment {
-                    view: collisions_agg_texture,
+                    view: &collisions_data.collisions_agg_texture_view,
                     resolve_target: None,
                     ops: Operations {
                         // load: LoadOp::Clear(clear_color.into()), // TODO: do not clear?
@@ -309,21 +206,14 @@ impl Node for CollisionsAggNode {
     }
 }
 
-pub struct CollisionsAggReadNode {
-    collisions_data: CollisionsData,
-}
-
-impl CollisionsAggReadNode {
-    pub fn new(collisions_data: CollisionsData) -> Self {
-        Self { collisions_data }
-    }
-}
+#[derive(Default)]
+pub struct CollisionsAggReadNode;
 
 impl Node for CollisionsAggReadNode {
     fn run(
         &self,
-        _graph: &mut bevy::render2::render_graph::RenderGraphContext,
-        render_context: &mut bevy::render2::renderer::RenderContext,
+        _graph: &mut RenderGraphContext,
+        render_context: &mut RenderContext,
         world: &World,
     ) -> Result<(), NodeRunError> {
         let assets = world.get_resource::<RenderAssets<AnticData>>().unwrap();
@@ -331,29 +221,28 @@ impl Node for CollisionsAggReadNode {
             .get_resource::<RenderPhase<CollisionsAggPhase>>()
             .unwrap();
         for item in collisions_agg_render_phase.items.iter() {
-            let gpu_antic_data =
-                if let Some(antic_data) = assets.get(&item.antic_data_handle) {
-                    antic_data
-                } else {
-                    return Ok(());
-                };
+            let gpu_antic_data = if let Some(antic_data) = assets.get(&item.antic_data_handle) {
+                antic_data
+            } else {
+                return Ok(());
+            };
 
             let collisions = gpu_antic_data.inner.collisions.as_ref().unwrap();
-            let copy_size = collisions.collisions_agg_texture_size;
+            let copy_size = crate::COLLISIONS_AGG_TEXTURE_SIZE;
+
+            self.read_collisions(&collisions.buffer, collisions.data.clone(), render_context);
 
             // consider moving this reading befor emulation step
             // for now we have additional 1 frame delay
-            self.collisions_data
-                .read_collisions(&render_context.render_device);
             render_context.command_encoder.copy_texture_to_buffer(
                 collisions.collisions_agg_texture.as_image_copy(),
                 wgpu::ImageCopyBuffer {
-                    buffer: &self.collisions_data.buffer,
+                    buffer: &collisions.buffer,
                     layout: wgpu::ImageDataLayout {
                         offset: 0,
                         bytes_per_row: Some(
                             std::num::NonZeroU32::new(
-                                copy_size.width * crate::CollisionsData::BYTES_PER_PIXEL as u32,
+                                copy_size.width * crate::COLLISIONS_AGG__BYTES_PER_PIXEL as u32,
                             )
                             .unwrap(),
                         ),
@@ -364,5 +253,41 @@ impl Node for CollisionsAggReadNode {
             );
         }
         Ok(())
+    }
+}
+
+impl CollisionsAggReadNode {
+    fn read_collisions(
+        &self,
+        buffer: &Buffer,
+        collisions_data: CollisionsData,
+        render_context: &RenderContext,
+    ) {
+        let slice = buffer.slice(..);
+        let map_future = slice.map_async(wgpu::MapMode::Read);
+        render_context.render_device.poll(wgpu::Maintain::Wait);
+        future::block_on(map_future).unwrap();
+        {
+            let buffer_view = slice.get_mapped_range();
+            let data: &[u8] = &buffer_view;
+            let data =
+                unsafe { std::slice::from_raw_parts(data.as_ptr() as *const u64, data.len() / 8) };
+            // bevy::log::info!("data: {:x?}", data);
+            let guard = &mut collisions_data.write();
+            let dest = guard.as_mut();
+
+            for y in 0..crate::COLLISIONS_AGG_TEXTURE_SIZE.height as usize {
+                if y == 0 {
+                    for x in 0..240 {
+                        dest[x] = data[y << 8 | x];
+                    }
+                } else {
+                    for x in 0..240 {
+                        dest[x] |= data[y << 8 | x];
+                    }
+                }
+            }
+        }
+        buffer.unmap();
     }
 }

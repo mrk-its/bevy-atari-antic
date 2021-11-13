@@ -6,7 +6,7 @@ use bevy::reflect::TypeUuid;
 use bevy::render2::mesh::{Indices, Mesh};
 use bevy::render2::texture::Image;
 use parking_lot::RwLock;
-use wgpu::{Extent3d, PrimitiveTopology};
+use wgpu::PrimitiveTopology;
 
 use super::palette::AtariPalette;
 
@@ -19,27 +19,32 @@ pub struct AnticDataInner {
     pub custom: Vec<[f32; 4]>,
     pub uvs: Vec<[f32; 2]>,
     pub indices: Vec<u16>,
-    pub collisions_agg_texture_size: Option<Extent3d>,
 }
+
+pub type CollisionsData = Arc<RwLock<[u64; 240]>>;
 
 #[derive(TypeUuid, Clone)]
 #[uuid = "bea612c2-68ed-4432-8d9c-f03ebea97043"]
 pub struct AnticData {
     pub main_image_handle: Handle<Image>,
     pub inner: Arc<RwLock<AnticDataInner>>,
+    pub collisions_data: Option<CollisionsData>,
 }
 
 const GTIA_REGS_MEMORY: usize = 240 * 32;
 
 impl AnticData {
-    pub fn new(
-        main_image_handle: Handle<Image>,
-        collisions_agg_texture_size: Option<Extent3d>,
-    ) -> Self {
+    pub fn new(main_image_handle: Handle<Image>, collisions: bool) -> Self {
         let mut memory = Vec::with_capacity(GTIA_REGS_MEMORY + 256 * 11 * 4 * 4);
         memory.resize(memory.capacity(), 0);
+        let collisions_data = if collisions {
+            Some(Arc::new(RwLock::new([0; 240])))
+        } else {
+            None
+        };
         Self {
             main_image_handle,
+            collisions_data,
             inner: Arc::new(RwLock::new(AnticDataInner {
                 memory,
                 memory_used: 0,
@@ -48,7 +53,6 @@ impl AnticData {
                 custom: Default::default(),
                 uvs: Default::default(),
                 indices: Default::default(),
-                collisions_agg_texture_size,
             })),
         }
     }

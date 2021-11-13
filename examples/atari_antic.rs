@@ -8,7 +8,7 @@ use bevy::{
     window::WindowDescriptor,
     PipelinedDefaultPlugins,
 };
-use bevy_atari_antic::{AnticData, CollisionsData, GTIARegs};
+use bevy_atari_antic::{AnticData, GTIARegs};
 use bevy_atari_antic::{AtariAnticPlugin, ModeLineDescr};
 
 use bevy::sprite2::{PipelinedSpriteBundle, Sprite};
@@ -70,22 +70,22 @@ fn quit_after_few_frames(mut cnt: Local<u32>, mut app_exit_events: EventWriter<A
 fn update(
     mut atari_data_assets: ResMut<Assets<AnticData>>,
     query: Query<&Handle<AnticData>>,
-    collisions: Res<Option<CollisionsData>>,
     scr_offsets: Res<MemOffsets>,
 ) {
     let span = bevy::utils::tracing::span!(bevy::utils::tracing::Level::INFO, "my_span");
     let _entered = span.enter();
 
-    let col_agg = (*collisions)
-        .as_ref()
-        .map(|c| {
-            let collisions = c.data.read();
-            collisions.iter().cloned().reduce(|a, v| a | v).unwrap()
-        })
-        .unwrap_or(0);
-
     for handle in query.iter() {
         if let Some(atari_data) = atari_data_assets.get_mut(handle) {
+            let col_agg = atari_data
+                .collisions_data
+                .as_ref()
+                .map(|cd| {
+                    let collisions = *cd.read();
+                    collisions.iter().cloned().reduce(|a, v| a | v).unwrap()
+                })
+                .unwrap_or(0);
+
             let mut inner = atari_data.inner.write();
             let c = &mut inner.memory[32 * 240 + 1024];
             *c = c.wrapping_add(1);
@@ -121,7 +121,7 @@ fn setup(
     mut scr_offsets: ResMut<MemOffsets>,
 ) {
     let main_image_handle = bevy_atari_antic::create_main_image(&mut *images);
-    let mut antic_data = AnticData::new(main_image_handle.clone(), None);
+    let mut antic_data = AnticData::new(main_image_handle.clone(), true);
 
     let coffs = antic_data.reserve_antic_memory(1024, &mut |data| {
         data.copy_from_slice(include_bytes!("charset.dat"))
