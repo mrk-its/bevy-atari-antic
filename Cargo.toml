@@ -35,4 +35,4 @@ path = "examples/atari_antic.rs"
 
 [patch.crates-io]
 wgpu = {git="https://github.com/mrk-its/wgpu", branch="misc"}
-glow = {git="https://github.com/grovesNL/glow", branch="master"}
+glow = {git="https://github.com/grovesNL/glow"}

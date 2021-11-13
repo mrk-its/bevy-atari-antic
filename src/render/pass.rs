@@ -6,9 +6,7 @@ use bevy::{
     render2::{
         color::Color,
         render_asset::RenderAssets,
-        render_graph::{
-            Node, NodeRunError, RenderGraphContext,
-        },
+        render_graph::{Node, NodeRunError, RenderGraphContext},
         render_phase::{DrawFunctionId, DrawFunctions, PhaseItem, RenderPhase, TrackedRenderPass},
         render_resource::CachedPipelineId,
         renderer::RenderContext,

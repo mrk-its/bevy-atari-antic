@@ -1,5 +1,7 @@
-pub use wgpu;
-use bevy::{prelude::{info, AddAsset, App, Assets, Handle, HandleUntyped, Plugin}, reflect::TypeUuid, render2::{
+use bevy::{
+    prelude::{info, AddAsset, App, Assets, Handle, HandleUntyped, Plugin},
+    reflect::TypeUuid,
+    render2::{
         camera::{CameraProjection, OrthographicProjection, WindowOrigin},
         render_asset::RenderAssetPlugin,
         render_component::ExtractComponentPlugin,
@@ -8,7 +10,10 @@ use bevy::{prelude::{info, AddAsset, App, Assets, Handle, HandleUntyped, Plugin}
         render_resource::*,
         texture::Image,
         RenderApp, RenderStage,
-    }, utils::HashMap};
+    },
+    utils::HashMap,
+};
+pub use wgpu;
 
 mod antic_data;
 mod palette;
@@ -34,7 +39,6 @@ const COLLISIONS_AGG_TEXTURE_SIZE: Extent3d = Extent3d {
     depth_or_array_layers: 1,
 };
 const COLLISIONS_AGG__BYTES_PER_PIXEL: usize = 16;
-
 
 pub fn create_main_image(images: &mut Assets<Image>) -> Handle<Image> {
     let mut image = Image::new(
@@ -117,10 +121,7 @@ impl Plugin for AtariAnticPlugin {
                 .add_node_edge("antic_node", "collisions_agg_node")
                 .unwrap();
 
-            graph.add_node(
-                "collisions_agg_read_node",
-                CollisionsAggReadNode::default(),
-            );
+            graph.add_node("collisions_agg_read_node", CollisionsAggReadNode::default());
             graph
                 .add_node_edge("collisions_agg_node", "collisions_agg_read_node")
                 .unwrap();
@@ -162,7 +163,6 @@ impl ModeLineDescr {
         }
     }
 }
-
 
 #[repr(C)]
 #[derive(Default, Clone, Copy, Debug)]

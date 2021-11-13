@@ -16,49 +16,6 @@ use bevy::sprite2::{PipelinedSpriteBundle, Sprite};
 #[derive(Debug)]
 pub struct MemOffsets(pub [usize; 24]);
 
-fn main() {
-    let mut app = App::new();
-    app.insert_resource(ClearColor(Color::rgb(0.3, 0.0, 0.6)));
-    app.insert_resource(WindowDescriptor {
-        width: 384.0 * 2.0,
-        height: 240.0 * 2.0,
-        scale_factor_override: Some(1.0),
-        ..Default::default()
-    });
-    app.insert_resource(Msaa { samples: 1 });
-    #[cfg(target_arch = "wasm32")]
-    {
-        let local_storage = web_sys::window().unwrap().local_storage().unwrap().unwrap();
-        let log_filter = if let Ok(Some(log_filter)) = local_storage.get_item("log") {
-            log_filter
-        } else {
-            "info".to_string()
-        };
-        app.insert_resource(bevy::log::LogSettings {
-            filter: log_filter,
-            level: bevy::utils::tracing::Level::DEBUG,
-        });
-    }
-    #[cfg(not(target_arch = "wasm32"))]
-    {
-        app.insert_resource(bevy::log::LogSettings {
-            level: bevy::utils::tracing::Level::INFO,
-            filter: "".to_string(),
-        });
-    }
-
-    app.add_plugins(PipelinedDefaultPlugins)
-        // .add_plugin(FrameTimeDiagnosticsPlugin::default())
-        .insert_resource(MemOffsets([0; 24]))
-        .add_plugin(AtariAnticPlugin { collisions: false })
-        .add_startup_system(setup)
-        .add_system(update);
-
-    // #[cfg(not(target_arch = "wasm32"))]
-    // app.add_system(quit_after_few_frames);
-    app.run();
-}
-
 #[allow(dead_code)]
 fn quit_after_few_frames(mut cnt: Local<u32>, mut app_exit_events: EventWriter<AppExit>) {
     *cnt += 1;
@@ -289,4 +246,47 @@ fn setup(
     });
 
     commands.spawn_bundle(OrthographicCameraBundle::new_2d());
+}
+
+fn main() {
+    let mut app = App::new();
+    app.insert_resource(ClearColor(Color::rgb(0.3, 0.0, 0.6)));
+    app.insert_resource(WindowDescriptor {
+        width: 384.0 * 2.0,
+        height: 240.0 * 2.0,
+        scale_factor_override: Some(1.0),
+        ..Default::default()
+    });
+    app.insert_resource(Msaa { samples: 1 });
+    #[cfg(target_arch = "wasm32")]
+    {
+        let local_storage = web_sys::window().unwrap().local_storage().unwrap().unwrap();
+        let log_filter = if let Ok(Some(log_filter)) = local_storage.get_item("log") {
+            log_filter
+        } else {
+            "info".to_string()
+        };
+        app.insert_resource(bevy::log::LogSettings {
+            filter: log_filter,
+            level: bevy::utils::tracing::Level::DEBUG,
+        });
+    }
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        app.insert_resource(bevy::log::LogSettings {
+            level: bevy::utils::tracing::Level::INFO,
+            filter: "".to_string(),
+        });
+    }
+
+    app.add_plugins(PipelinedDefaultPlugins)
+        // .add_plugin(FrameTimeDiagnosticsPlugin::default())
+        .insert_resource(MemOffsets([0; 24]))
+        .add_plugin(AtariAnticPlugin { collisions: true })
+        .add_startup_system(setup)
+        .add_system(update);
+
+    // #[cfg(not(target_arch = "wasm32"))]
+    // app.add_system(quit_after_few_frames);
+    app.run();
 }

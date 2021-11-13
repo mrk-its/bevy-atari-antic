@@ -89,11 +89,11 @@ impl RenderAsset for AnticData {
         let inner = extracted_asset.inner.read();
         let entry = cache.entry(extracted_asset.main_image_handle.clone());
         let main_image_handle = extracted_asset.main_image_handle.clone();
-        let collisions_data = extracted_asset.collisions_data.as_ref().map(|data| {
-            (&**collisions_agg_pipeline, data.clone())
-        });
+        let collisions_data = extracted_asset
+            .collisions_data
+            .as_ref()
+            .map(|data| (&**collisions_agg_pipeline, data.clone()));
         let gpu_data = entry.or_insert_with(|| {
-
             let gpu_data = GpuAnticData {
                 inner: Self::create_gpu_data(
                     render_device,
