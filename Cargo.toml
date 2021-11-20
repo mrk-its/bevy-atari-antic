@@ -18,6 +18,7 @@ tracing-wasm = "=0.2.0"
 [dependencies.bevy]
 git = "https://github.com/mrk-its/bevy"
 branch = "bevy_atari"
+# path = "../bevy"
 default_features = false
 features = ["bevy_core_pipeline", "bevy_render2", "bevy_sprite2", "bevy_winit"]
 

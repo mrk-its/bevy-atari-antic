@@ -1,20 +1,8 @@
 #![allow(clippy::type_complexity)]
-use bevy::{
-    ecs::{
+use bevy::{ecs::{
         prelude::*,
         system::{lifetimeless::*, SystemParamItem},
-    },
-    prelude::Handle,
-    render2::{
-        crevice::std140::{AsStd140, Std140},
-        render_asset::{PrepareAssetError, RenderAsset, RenderAssets},
-        render_phase::{DrawFunctions, RenderCommand, RenderPhase, TrackedRenderPass},
-        render_resource::*,
-        renderer::{RenderDevice, RenderQueue},
-        texture::Image,
-    },
-    utils::HashMap,
-};
+    }, prelude::Handle, render2::{crevice::std140::{AsStd140, Std140}, render_asset::{PrepareAssetError, RenderAsset, RenderAssets}, render_phase::{DrawFunctions, RenderCommand, RenderCommandResult, RenderPhase, TrackedRenderPass}, render_resource::*, renderer::{RenderDevice, RenderQueue}, texture::Image}, utils::HashMap};
 
 pub mod pass;
 use crate::palette::AtariPalette;
@@ -449,8 +437,8 @@ impl SpecializedPipeline for AnticPipeline {
                 front_face: FrontFace::Ccw,
                 cull_mode: None,
                 polygon_mode: PolygonMode::Fill,
-                clamp_depth: false,
                 conservative: false,
+                unclipped_depth: false,
             },
         }
     }
@@ -513,8 +501,8 @@ impl SpecializedPipeline for CollisionsAggPipeline {
                 front_face: FrontFace::Ccw,
                 cull_mode: None,
                 polygon_mode: PolygonMode::Fill,
-                clamp_depth: false,
                 conservative: false,
+                unclipped_depth: false,
             },
         }
     }
@@ -586,7 +574,7 @@ impl RenderCommand<AnticPhase> for SetAnticPipeline {
         item: &AnticPhase,
         (pipeline_cache, atari_data_assets, query): SystemParamItem<'w, '_, Self::Param>,
         pass: &mut TrackedRenderPass<'w>,
-    ) {
+    ) -> RenderCommandResult {
         let antic_data_handle = query.get(item.entity).unwrap();
         let gpu_atari_data = atari_data_assets
             .into_inner()
@@ -608,6 +596,7 @@ impl RenderCommand<AnticPhase> for SetAnticPipeline {
             );
             pass.draw_indexed(0..index_count, 0, 0..1);
         }
+        RenderCommandResult::Success
     }
 }
 
@@ -623,7 +612,7 @@ impl RenderCommand<CollisionsAggPhase> for SetCollisionsAggPipeline {
         item: &CollisionsAggPhase,
         (pipeline_cache, atari_data_assets, query): SystemParamItem<'w, '_, Self::Param>,
         pass: &mut TrackedRenderPass<'w>,
-    ) {
+    ) -> RenderCommandResult {
         let antic_data_handle = query.get(item.entity).unwrap();
         let gpu_atari_data = atari_data_assets
             .into_inner()
@@ -647,5 +636,6 @@ impl RenderCommand<CollisionsAggPhase> for SetCollisionsAggPipeline {
             );
             pass.draw_indexed(0..index_count, 0, 0..1);
         }
+        RenderCommandResult::Success
     }
 }
