@@ -1,9 +1,6 @@
+use bevy::render2::color::Color;
 use bytemuck::{Pod, Zeroable};
-
-use bevy::render2::{
-    color::Color,
-    crevice::std140::{Std140, Std140Padded},
-};
+use crevice::std140::Std140;
 
 #[repr(C)]
 #[derive(Debug, Clone, Copy, Zeroable, Pod)]
@@ -25,5 +22,4 @@ impl Default for AtariPalette {
 
 unsafe impl Std140 for AtariPalette {
     const ALIGNMENT: usize = 4 * 4 * 256;
-    type Padded = Std140Padded<Self, 0>;
 }

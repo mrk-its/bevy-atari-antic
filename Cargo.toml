@@ -11,7 +11,7 @@ bytemuck = {version="1.7", features=["derive"]}
 wgpu = { version = "0.11", features = ["spirv", "webgl"] }
 parking_lot = "0.11"
 futures-lite = "1.11.3"
-
+crevice = "0"
 # workaround for symver violation there
 tracing-wasm = "=0.2.0"
 
@@ -35,5 +35,5 @@ path = "examples/atari_antic.rs"
 # codegen-units = 1
 
 [patch.crates-io]
-wgpu = {git="https://github.com/mrk-its/wgpu", branch="misc"}
+wgpu = {git="https://github.com/mrk-its/wgpu", branch="master"}
 glow = {git="https://github.com/grovesNL/glow"}
