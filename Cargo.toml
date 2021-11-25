@@ -12,8 +12,7 @@ wgpu = { version = "0.11", features = ["spirv", "webgl"] }
 parking_lot = "0.11"
 futures-lite = "1.11.3"
 crevice = "0"
-# workaround for symver violation there
-tracing-wasm = "=0.2.0"
+
 
 [dependencies.bevy]
 git = "https://github.com/mrk-its/bevy"
@@ -37,3 +36,4 @@ path = "examples/atari_antic.rs"
 [patch.crates-io]
 wgpu = {git="https://github.com/mrk-its/wgpu", branch="master"}
 glow = {git="https://github.com/grovesNL/glow"}
+naga = {git="https://github.com/gfx-rs/naga", rev="29571cc"}
