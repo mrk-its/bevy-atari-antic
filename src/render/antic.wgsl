@@ -286,6 +286,20 @@ fn fragment(
         } else {
             color_reg_index = 0;
         };
+    } elseif(mode == 8) {
+        let w = px_scrolled / 32.0;;
+        let n = i32(w); // byte offset
+        let frac = w - f32(n);
+        let bit_offs = 6u - u32(frac * 4.0) * 2u; // bit offset in byte
+        let byte = get_memory(video_memory_offset + n);
+        color_reg_index = (byte >> bit_offs) & 3;
+    } elseif(mode == 9) {
+        let w = px_scrolled / 32.0;;
+        let n = i32(w); // byte offset
+        let frac = w - f32(n);
+        let bit_offs = 7u - u32(frac * 8.0);
+        let byte = get_memory(video_memory_offset + n);
+        color_reg_index = (byte >> bit_offs) & 1;
     } elseif(mode == 10) {
         let w = px_scrolled / 16.0;
         let n = i32(w); // byte offset
