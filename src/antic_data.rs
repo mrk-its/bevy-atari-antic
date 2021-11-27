@@ -4,9 +4,12 @@ use bevy::math::vec2;
 use bevy::prelude::Handle;
 use bevy::reflect::TypeUuid;
 use bevy::render2::mesh::{Indices, Mesh};
+use bevy::render2::render_resource::Buffer;
+use bevy::render2::renderer::{RenderContext, RenderDevice};
 use bevy::render2::texture::Image;
+use futures_lite::future;
 use parking_lot::RwLock;
-use wgpu::PrimitiveTopology;
+use wgpu::{BufferDescriptor, BufferUsages, PrimitiveTopology};
 
 use super::palette::AtariPalette;
 
@@ -21,7 +24,49 @@ pub struct AnticDataInner {
     pub indices: Vec<u16>,
 }
 
-pub type CollisionsData = Arc<RwLock<[u64; 240]>>;
+pub struct CollisionsDataInner {
+    pub data: [u64; 240],
+}
+#[derive(Clone)]
+pub struct CollisionsData {
+    pub inner: Arc<RwLock<CollisionsDataInner>>,
+    pub buffer: Buffer,
+}
+
+impl CollisionsData {
+    pub fn new(buffer: Buffer) -> Self {
+        Self {
+            inner: Arc::new(RwLock::new(CollisionsDataInner { data: [0; 240] })),
+            buffer,
+        }
+    }
+    pub fn read_collisions(&self, render_device: &RenderDevice) {
+        let mut inner = self.inner.write();
+        let slice = self.buffer.slice(..);
+        let map_future = slice.map_async(wgpu::MapMode::Read);
+        render_device.poll(wgpu::Maintain::Wait);
+        future::block_on(map_future).unwrap();
+        {
+            let buffer_view = slice.get_mapped_range();
+            let data: &[u8] = &buffer_view;
+            let data =
+                unsafe { std::slice::from_raw_parts(data.as_ptr() as *const u64, data.len() / 8) };
+            let dest = &mut inner.data;
+            for y in 0..crate::COLLISIONS_AGG_TEXTURE_SIZE.height as usize {
+                if y == 0 {
+                    for x in 0..240 {
+                        dest[x] = data[y << 8 | x];
+                    }
+                } else {
+                    for x in 0..240 {
+                        dest[x] |= data[y << 8 | x];
+                    }
+                }
+            }
+        }
+        self.buffer.unmap();
+    }
+}
 
 #[derive(TypeUuid, Clone)]
 #[uuid = "bea612c2-68ed-4432-8d9c-f03ebea97043"]
@@ -34,11 +79,23 @@ pub struct AnticData {
 const GTIA_REGS_MEMORY: usize = 240 * 32;
 
 impl AnticData {
-    pub fn new(main_image_handle: Handle<Image>, collisions: bool) -> Self {
+    pub fn new(
+        render_device: &RenderDevice,
+        main_image_handle: Handle<Image>,
+        collisions: bool,
+    ) -> Self {
         let mut memory = Vec::with_capacity(GTIA_REGS_MEMORY + 256 * 11 * 4 * 4);
         memory.resize(memory.capacity(), 0);
+        let buffer = render_device.create_buffer(&BufferDescriptor {
+            label: Some("atari collisions buffer"),
+            usage: BufferUsages::COPY_DST | BufferUsages::MAP_READ,
+            size: ((crate::COLLISIONS_AGG_TEXTURE_SIZE.width
+                * crate::COLLISIONS_AGG_TEXTURE_SIZE.height) as usize
+                * crate::COLLISIONS_AGG__BYTES_PER_PIXEL) as u64,
+            mapped_at_creation: false,
+        });
         let collisions_data = if collisions {
-            Some(Arc::new(RwLock::new([0; 240])))
+            Some(CollisionsData::new(buffer))
         } else {
             None
         };

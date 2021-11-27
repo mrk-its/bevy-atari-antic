@@ -29,7 +29,6 @@ use crate::ANTIC_SHADER_HANDLE;
 #[derive(Clone)]
 pub struct GpuAnticCollisionsData {
     pub data: CollisionsData,
-    buffer: Buffer,
     _collisions_texture: Texture,
     collisions_texture_view: TextureView,
     collisions_agg_texture: Texture,
@@ -271,17 +270,8 @@ impl AnticData {
                 label: Some("collisions_agg_bind_group"),
                 layout: &collisions_agg_pipeline.data_layout,
             });
-            let buffer = render_device.create_buffer(&BufferDescriptor {
-                label: Some("atari collisions buffer"),
-                usage: BufferUsages::COPY_DST | BufferUsages::MAP_READ,
-                size: ((crate::COLLISIONS_AGG_TEXTURE_SIZE.width
-                    * crate::COLLISIONS_AGG_TEXTURE_SIZE.height) as usize
-                    * crate::COLLISIONS_AGG__BYTES_PER_PIXEL) as u64,
-                mapped_at_creation: false,
-            });
             Some(GpuAnticCollisionsData {
                 data,
-                buffer,
                 _collisions_texture: collisions_texture,
                 collisions_texture_view,
                 collisions_agg_texture,

@@ -1,5 +1,3 @@
-use futures_lite::future;
-
 use bevy::{
     ecs::prelude::*,
     prelude::Handle,
@@ -13,9 +11,9 @@ use bevy::{
         texture::Image,
     },
 };
-use wgpu::{Buffer, LoadOp, Operations, RenderPassColorAttachment, RenderPassDescriptor};
+use wgpu::{LoadOp, Operations, RenderPassColorAttachment, RenderPassDescriptor};
 
-use crate::{AnticData, CollisionsData};
+use crate::AnticData;
 pub struct AnticPhase {
     pub pipeline: CachedPipelineId,
     pub entity: Entity,
@@ -228,14 +226,10 @@ impl Node for CollisionsAggReadNode {
             let collisions = gpu_antic_data.inner.collisions.as_ref().unwrap();
             let copy_size = crate::COLLISIONS_AGG_TEXTURE_SIZE;
 
-            self.read_collisions(&collisions.buffer, collisions.data.clone(), render_context);
-
-            // consider moving this reading befor emulation step
-            // for now we have additional 1 frame delay
             render_context.command_encoder.copy_texture_to_buffer(
                 collisions.collisions_agg_texture.as_image_copy(),
                 wgpu::ImageCopyBuffer {
-                    buffer: &collisions.buffer,
+                    buffer: &collisions.data.buffer,
                     layout: wgpu::ImageDataLayout {
                         offset: 0,
                         bytes_per_row: Some(
@@ -251,41 +245,5 @@ impl Node for CollisionsAggReadNode {
             );
         }
         Ok(())
-    }
-}
-
-impl CollisionsAggReadNode {
-    fn read_collisions(
-        &self,
-        buffer: &Buffer,
-        collisions_data: CollisionsData,
-        render_context: &RenderContext,
-    ) {
-        let slice = buffer.slice(..);
-        let map_future = slice.map_async(wgpu::MapMode::Read);
-        render_context.render_device.poll(wgpu::Maintain::Wait);
-        future::block_on(map_future).unwrap();
-        {
-            let buffer_view = slice.get_mapped_range();
-            let data: &[u8] = &buffer_view;
-            let data =
-                unsafe { std::slice::from_raw_parts(data.as_ptr() as *const u64, data.len() / 8) };
-            // bevy::log::info!("data: {:x?}", data);
-            let guard = &mut collisions_data.write();
-            let dest = guard.as_mut();
-
-            for y in 0..crate::COLLISIONS_AGG_TEXTURE_SIZE.height as usize {
-                if y == 0 {
-                    for x in 0..240 {
-                        dest[x] = data[y << 8 | x];
-                    }
-                } else {
-                    for x in 0..240 {
-                        dest[x] |= data[y << 8 | x];
-                    }
-                }
-            }
-        }
-        buffer.unmap();
     }
 }

@@ -4,7 +4,10 @@ use bevy::{
     ecs::prelude::*,
     math::Vec3,
     prelude::{App, Assets, Handle, Transform},
-    render2::{camera::OrthographicCameraBundle, color::Color, texture::Image, view::Msaa},
+    render2::{
+        camera::OrthographicCameraBundle, color::Color, renderer::RenderDevice, texture::Image,
+        view::Msaa,
+    },
     window::WindowDescriptor,
     PipelinedDefaultPlugins,
 };
@@ -26,6 +29,7 @@ fn quit_after_few_frames(mut cnt: Local<u32>, mut app_exit_events: EventWriter<A
 
 fn update(
     mut atari_data_assets: ResMut<Assets<AnticData>>,
+    render_device: Res<RenderDevice>,
     query: Query<&Handle<AnticData>>,
     scr_offsets: Res<MemOffsets>,
 ) {
@@ -34,12 +38,17 @@ fn update(
 
     for handle in query.iter() {
         if let Some(atari_data) = atari_data_assets.get_mut(handle) {
+            atari_data
+                .collisions_data
+                .as_ref()
+                .unwrap()
+                .read_collisions(&render_device);
             let col_agg = atari_data
                 .collisions_data
                 .as_ref()
                 .map(|cd| {
-                    let collisions = *cd.read();
-                    collisions.iter().cloned().reduce(|a, v| a | v).unwrap()
+                    let guard = cd.inner.read();
+                    guard.data.iter().cloned().reduce(|a, v| a | v).unwrap()
                 })
                 .unwrap_or(0);
 
@@ -74,11 +83,12 @@ fn internal_chr(c: u8) -> u8 {
 fn setup(
     mut commands: Commands,
     mut antic_data_assets: ResMut<Assets<AnticData>>,
+    render_device: Res<RenderDevice>,
     mut images: ResMut<Assets<Image>>,
     mut scr_offsets: ResMut<MemOffsets>,
 ) {
     let main_image_handle = bevy_atari_antic::create_main_image(&mut *images);
-    let mut antic_data = AnticData::new(main_image_handle.clone(), true);
+    let mut antic_data = AnticData::new(&render_device, main_image_handle.clone(), true);
 
     let coffs = antic_data.reserve_antic_memory(1024, &mut |data| {
         data.copy_from_slice(include_bytes!("charset.dat"))
