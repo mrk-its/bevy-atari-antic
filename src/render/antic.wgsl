@@ -67,9 +67,8 @@ fn get_memory(offset: i32) -> i32 {
 fn cond_i32(pred: bool, a: i32, b: i32) -> i32 {
     if(pred) {
         return a;
-    } else {
-        return b;
-    }
+    };
+    return b;
 }
 
 [[stage(vertex)]]
@@ -109,42 +108,42 @@ fn collisions_agg_fragment(
     [[location(1)]] uv: vec2<f32>,
     [[location(2), interpolate(flat)]] custom: vec4<f32>
 ) -> [[location(0)]] vec4<u32> {
-    let TEXTURE_HEIGHT = 32;
+    var TEXTURE_HEIGHT = 32;
 # ifdef T_1
-    let TEXTURE_HEIGHT = 1;
+    TEXTURE_HEIGHT = 1;
 # endif
 
 # ifdef T_2
-    let TEXTURE_HEIGHT = 2;
+    TEXTURE_HEIGHT = 2;
 # endif
 
 # ifdef T_3
-    let TEXTURE_HEIGHT = 3;
+    TEXTURE_HEIGHT = 3;
 # endif
 
 # ifdef T_4
-    let TEXTURE_HEIGHT = 4;
+    TEXTURE_HEIGHT = 4;
 # endif
 # ifdef T_6
-    let TEXTURE_HEIGHT = 6;
+    TEXTURE_HEIGHT = 6;
 # endif
 # ifdef T_8
-    let TEXTURE_HEIGHT = 8;
+    TEXTURE_HEIGHT = 8;
 # endif
 # ifdef T_12
-    let TEXTURE_HEIGHT = 12;
+    TEXTURE_HEIGHT = 12;
 # endif
 # ifdef T_16
-    let TEXTURE_HEIGHT = 16;
+    TEXTURE_HEIGHT = 16;
 # endif
 # ifdef T_24
-    let TEXTURE_HEIGHT = 24;
+    TEXTURE_HEIGHT = 24;
 # endif
 # ifdef T_32
-    let TEXTURE_HEIGHT = 32;
+    TEXTURE_HEIGHT = 32;
 # endif
 # ifdef T_384
-    let TEXTURE_HEIGHT = 384;
+    TEXTURE_HEIGHT = 384;
 # endif
 
     let STRIP_WIDTH = 384 / TEXTURE_HEIGHT;
@@ -374,8 +373,8 @@ fn fragment(
     let missile_shift = vec4<u32>(0u, 2u, 4u, 6u);
     let mdata = vec4<i32>(get_gtia_reg(scan_line, 0x11)) >> missile_shift;
 
-    let msize = (vec4<u32>(u32(get_gtia_reg(scan_line, 0x0c))) >> missile_shift) & vec4<u32>(0x3u);
-    let msize = vec4<f32>(vec4<i32>(4) << msize);
+    let msize_ = (vec4<u32>(u32(get_gtia_reg(scan_line, 0x0c))) >> missile_shift) & vec4<u32>(0x3u);
+    let msize = vec4<f32>(vec4<i32>(4) << msize_);
 
     let m = get_pm_pixels(vpx, 2.0, scan_line, msize, hposm, mdata);
 
@@ -386,8 +385,8 @@ fn fragment(
 
     let p5 = (prior & 0x10) > 0;
 
-    let psize = vec4<u32>(u32(get_gtia_reg(scan_line, 0x08))) & vec4<u32>(0x3u);
-    let psize = vec4<f32>(vec4<i32>(16) << psize);
+    let psize_ = vec4<u32>(u32(get_gtia_reg(scan_line, 0x08))) & vec4<u32>(0x3u);
+    let psize = vec4<f32>(vec4<i32>(16) << psize_);
     let data = get_gtia_reg4(scan_line, 0x0d);
 
     let p = get_pm_pixels(vpx, 8.0, scan_line, psize, hposp, data);
@@ -436,34 +435,34 @@ fn fragment(
 
     // TODO - do not check collisions on HBLANK
 
-    let p0 = bool(p[0]);
-    let p1 = bool(p[1]);
-    let p2 = bool(p[2]);
-    let p3 = bool(p[3]);
+    let p0_ = bool(p[0]);
+    let p1_ = bool(p[1]);
+    let p2_ = bool(p[2]);
+    let p3_ = bool(p[3]);
 
     let pf_bits = cond_i32(pf0, 1, 0) | cond_i32(pf1, 2, 0) | cond_i32(pf2, 4, 0) | cond_i32(pf3, 8, 0);
 
-    let p0pf = cond_i32(p0, pf_bits, 0);
-    let p1pf = cond_i32(p1, pf_bits << 4u, 0);
-    let p2pf = cond_i32(p2, pf_bits << 8u, 0);
-    let p3pf = cond_i32(p3, pf_bits << 12u, 0);
+    let p0pf = cond_i32(p0_, pf_bits, 0);
+    let p1pf = cond_i32(p1_, pf_bits << 4u, 0);
+    let p2pf = cond_i32(p2_, pf_bits << 8u, 0);
+    let p3pf = cond_i32(p3_, pf_bits << 12u, 0);
 
     let m0pf = cond_i32(m0, pf_bits, 0);
     let m1pf = cond_i32(m1, pf_bits << 4u, 0);
     let m2pf = cond_i32(m2, pf_bits << 8u, 0);
     let m3pf = cond_i32(m3, pf_bits << 12u, 0);
 
-    let player_bits = i32(p0) | (i32(p1) << 1u) | (i32(p2) << 2u) | (i32(p3) << 3u);
+    let player_bits = i32(p0_) | (i32(p1_) << 1u) | (i32(p2_) << 2u) | (i32(p3_) << 3u);
 
     let m0pl = cond_i32(m0, player_bits, 0);
     let m1pl = cond_i32(m1, player_bits << 4u, 0);
     let m2pl = cond_i32(m2, player_bits << 8u, 0);
     let m3pl = cond_i32(m3, player_bits << 12u, 0);
 
-    let p0pl = cond_i32(p0, player_bits & ~1, 0);
-    let p1pl = cond_i32(p1, (player_bits & ~2) << 4u, 0);
-    let p2pl = cond_i32(p2, (player_bits & ~4) << 8u, 0);
-    let p3pl = cond_i32(p3, (player_bits & ~8) << 12u, 0);
+    let p0pl = cond_i32(p0_, player_bits & ~1, 0);
+    let p1pl = cond_i32(p1_, (player_bits & ~2) << 4u, 0);
+    let p2pl = cond_i32(p2_, (player_bits & ~4) << 8u, 0);
+    let p3pl = cond_i32(p3_, (player_bits & ~8) << 12u, 0);
 
     let o_CollisionsTarget = vec4<u32>(
         u32(m0pf | m1pf | m2pf | m3pf),
