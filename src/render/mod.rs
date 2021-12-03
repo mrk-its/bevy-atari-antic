@@ -585,6 +585,9 @@ impl RenderCommand<AnticPhase> for SetAnticPipeline {
             .unwrap();
 
         let index_count = gpu_atari_data.index_count;
+        if index_count == 0 {
+            return RenderCommandResult::Failure;
+        }
         if let Some(pipeline) = pipeline_cache.into_inner().get(item.pipeline) {
             pass.set_render_pipeline(pipeline);
             pass.set_bind_group(0, &gpu_atari_data.inner.main_bind_group, &[]);
