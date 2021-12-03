@@ -1,28 +1,34 @@
 [package]
 edition = "2021"
 name = "bevy_atari_antic"
-version = "0.1.0"
 resolver = "2"
+version = "0.1.0"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-bytemuck = {version="1.7", features=["derive"]}
-wgpu = { version = "0.11", features = ["spirv", "webgl"] }
-parking_lot = "0.11"
-futures-lite = "1.11.3"
+bytemuck = {version = "1.7", features = ["derive"]}
 crevice = "0"
+futures-lite = "1.11.3"
+parking_lot = "0.11"
+wgpu = {version = "0.11", features = ["spirv"]}
 
+[features]
+default = [
+  "webgl",
+]
+
+webgl = ["bevy/webgl"]
 
 [dependencies.bevy]
-git = "https://github.com/mrk-its/bevy"
-branch = "bevy_atari"
-# path = "../bevy"
+# git = "https://github.com/mrk-its/bevy"
+# branch = "bevy_atari"
 default_features = false
 features = ["bevy_core_pipeline", "bevy_render2", "bevy_sprite2", "bevy_winit"]
+path = "../../bevy"
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
-web-sys = { version = "0.3", features = ["Storage"]}
+web-sys = {version = "0.3", features = ["Storage"]}
 
 [[example]]
 name = "atari_antic"
@@ -34,6 +40,6 @@ path = "examples/atari_antic.rs"
 # codegen-units = 1
 
 [patch.crates-io]
-wgpu = {git="https://github.com/mrk-its/wgpu", branch="master"}
-glow = {git="https://github.com/grovesNL/glow"}
-naga = {git="https://github.com/gfx-rs/naga", rev="29571cc"}
+glow = {git = "https://github.com/grovesNL/glow"}
+naga = {git = "https://github.com/gfx-rs/naga", rev = "29571cc"}
+wgpu = {git = "https://github.com/mrk-its/wgpu", branch = "master"}

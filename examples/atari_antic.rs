@@ -3,7 +3,7 @@ use bevy::{
     core_pipeline::ClearColor,
     ecs::prelude::*,
     math::Vec3,
-    prelude::{App, Assets, Handle, Transform},
+    prelude::{bevy_main, App, Assets, Handle, Transform},
     render2::{
         camera::OrthographicCameraBundle, color::Color, renderer::RenderDevice, texture::Image,
         view::Msaa,
@@ -38,11 +38,9 @@ fn update(
 
     for handle in query.iter() {
         if let Some(atari_data) = atari_data_assets.get_mut(handle) {
-            atari_data
-                .collisions_data
-                .as_ref()
-                .unwrap()
-                .read_collisions(&render_device);
+            if let Some(collision_data) = atari_data.collisions_data.as_ref() {
+                collision_data.read_collisions(&render_device);
+            }
             let col_agg = atari_data
                 .collisions_data
                 .as_ref()
@@ -88,7 +86,7 @@ fn setup(
     mut scr_offsets: ResMut<MemOffsets>,
 ) {
     let main_image_handle = bevy_atari_antic::create_main_image(&mut *images);
-    let mut antic_data = AnticData::new(&render_device, main_image_handle.clone(), true);
+    let mut antic_data = AnticData::new(&render_device, main_image_handle.clone(), COLLISIONS);
 
     let coffs = antic_data.reserve_antic_memory(1024, &mut |data| {
         data.copy_from_slice(include_bytes!("charset.dat"))
@@ -258,7 +256,10 @@ fn setup(
     commands.spawn_bundle(OrthographicCameraBundle::new_2d());
 }
 
-fn main() {
+const COLLISIONS: bool = cfg!(feature="webgl");
+
+#[bevy_main]
+async fn main() {
     let mut app = App::new();
     app.insert_resource(ClearColor(Color::rgb(0.3, 0.0, 0.6)));
     app.insert_resource(WindowDescriptor {
@@ -289,10 +290,14 @@ fn main() {
         });
     }
 
-    app.add_plugins(PipelinedDefaultPlugins)
-        // .add_plugin(FrameTimeDiagnosticsPlugin::default())
-        .insert_resource(MemOffsets([0; 24]))
-        .add_plugin(AtariAnticPlugin { collisions: true })
+    app.add_plugins_async(PipelinedDefaultPlugins)
+        .await
+        .unwrap();
+    // .add_plugin(FrameTimeDiagnosticsPlugin::default())
+    app.insert_resource(MemOffsets([0; 24]))
+        .add_plugin(AtariAnticPlugin {
+            collisions: COLLISIONS,
+        })
         .add_startup_system(setup)
         .add_system(update);
 
