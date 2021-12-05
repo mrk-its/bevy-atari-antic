@@ -18,7 +18,7 @@ use bevy::{
 };
 use crevice::std140::{AsStd140, Std140};
 pub mod pass;
-use crate::palette::AtariPalette;
+use crate::resources::{AtariPalette, AnticConfig};
 use pass::{AnticPhase, CollisionsAggPhase};
 use std::sync::Arc;
 use wgpu::BufferDescriptor;
@@ -41,6 +41,7 @@ pub struct GpuAnticCollisionsData {
 #[derive(Clone)]
 pub struct GpuAnticDataInner {
     palette_buffer: Buffer,
+    config_buffer: Buffer,
     index_buffer: Buffer,
     vertex_buffer: Buffer,
     data_texture: Texture,
@@ -54,6 +55,7 @@ pub struct GpuAnticDataInner {
 pub struct GpuAnticData {
     inner: Arc<GpuAnticDataInner>,
     index_count: u32,
+    config: AnticConfig,
 }
 
 pub const DATA_TEXTURE_SIZE: Extent3d = Extent3d {
@@ -86,6 +88,7 @@ impl RenderAsset for AnticData {
         extracted_asset: Self::ExtractedAsset,
         (render_device, render_queue, pipeline, collisions_agg_pipeline, cache): &mut SystemParamItem<Self::Param>,
     ) -> Result<Self::PreparedAsset, PrepareAssetError<Self::ExtractedAsset>> {
+
         let inner = extracted_asset.inner.read();
         let entry = cache.entry(extracted_asset.main_image_handle.clone());
         let main_image_handle = extracted_asset.main_image_handle.clone();
@@ -102,11 +105,17 @@ impl RenderAsset for AnticData {
                     collisions_data,
                 ),
                 index_count: 0,
+                config: extracted_asset.config,
             };
             render_queue.write_buffer(
                 &gpu_data.inner.palette_buffer,
                 0,
                 inner.palette.as_std140().as_bytes(),
+            );
+            render_queue.write_buffer(
+                &gpu_data.inner.config_buffer,
+                0,
+                extracted_asset.config.as_std140().as_bytes(),
             );
             if let Some(collisions) = &gpu_data.inner.collisions {
                 // and collisions vertex / index buffer
@@ -131,13 +140,12 @@ impl RenderAsset for AnticData {
         });
 
         // TODO - mesh change detection
-
         let mesh = extracted_asset.create_mesh();
         let vertex_data = mesh.get_vertex_buffer_data();
         let index_data = mesh.get_index_buffer_bytes();
-        gpu_data.index_count = inner.indices.len() as u32;
 
         if let Some(index_data) = index_data {
+            gpu_data.index_count = index_data.len() as u32 / 2;
             render_queue.write_buffer(&gpu_data.inner.index_buffer, 0, index_data);
         }
         render_queue.write_buffer(&gpu_data.inner.vertex_buffer, 0, &vertex_data);
@@ -152,6 +160,14 @@ impl RenderAsset for AnticData {
             },
             DATA_TEXTURE_SIZE,
         );
+        if extracted_asset.config != gpu_data.config {
+            gpu_data.config = extracted_asset.config;
+            render_queue.write_buffer(
+                &gpu_data.inner.config_buffer,
+                0,
+                extracted_asset.config.as_std140().as_bytes(),
+            );
+        }
         Ok(gpu_data.clone())
     }
 }
@@ -185,6 +201,14 @@ impl AnticData {
             mapped_at_creation: false,
         });
 
+        let config_buffer = render_device.create_buffer(&BufferDescriptor {
+            label: Some("config_buffer"),
+            usage: BufferUsages::UNIFORM | BufferUsages::COPY_DST,
+            size: AnticConfig::std140_size_static() as u64,
+            mapped_at_creation: false,
+        });
+
+
         let vertex_buffer = render_device.create_buffer(&BufferDescriptor {
             label: Some("atari_vertex_buffer"),
             usage: BufferUsages::VERTEX | BufferUsages::COPY_DST,
@@ -208,6 +232,10 @@ impl AnticData {
                 BindGroupEntry {
                     binding: 1,
                     resource: palette_buffer.as_entire_binding(),
+                },
+                BindGroupEntry {
+                    binding: 2,
+                    resource: config_buffer.as_entire_binding(),
                 },
             ],
             label: Some("atari_bind_group"),
@@ -287,6 +315,7 @@ impl AnticData {
         Arc::new(GpuAnticDataInner {
             main_image_handle,
             palette_buffer,
+            config_buffer,
             index_buffer,
             vertex_buffer,
             data_texture,
@@ -331,6 +360,18 @@ impl FromWorld for AnticPipeline {
                             has_dynamic_offset: false,
                             min_binding_size: BufferSize::new(
                                 AtariPalette::std140_size_static() as u64
+                            ),
+                        },
+                        count: None,
+                    },
+                    BindGroupLayoutEntry {
+                        binding: 2,
+                        visibility: ShaderStages::FRAGMENT,
+                        ty: BindingType::Buffer {
+                            ty: BufferBindingType::Uniform,
+                            has_dynamic_offset: false,
+                            min_binding_size: BufferSize::new(
+                                AnticConfig::std140_size_static() as u64
                             ),
                         },
                         count: None,

@@ -1,7 +1,9 @@
 export EXAMPLE_NAME=atari_antic
 export HTML_FILE=index.html
 
-RUSTFLAGS=--cfg=web_sys_unstable_apis cargo build --example $EXAMPLE_NAME --target wasm32-unknown-unknown --release --no-default-features $*
+export RUSTFLAGS=--cfg=web_sys_unstable_apis
+
+cargo build --example $EXAMPLE_NAME --target wasm32-unknown-unknown --release --no-default-features --features webgl$*
 wasm-bindgen --target web --out-dir web --no-typescript target/wasm32-unknown-unknown/release/examples/${EXAMPLE_NAME}.wasm
 
 envsubst <<EOF > $HTML_FILE

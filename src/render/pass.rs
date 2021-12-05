@@ -91,6 +91,7 @@ impl Node for AnticPassNode {
                         view: main_texture,
                         resolve_target: None,
                         ops: Operations {
+                            // load: LoadOp::Clear(Color::rgba(0.0, 0.0, 0.0, 1.0).into()), // TODO: clear when paused?
                             load: LoadOp::Load,
                             store: true,
                         },
@@ -226,10 +227,14 @@ impl Node for CollisionsAggReadNode {
             let collisions = gpu_antic_data.inner.collisions.as_ref().unwrap();
             let copy_size = crate::COLLISIONS_AGG_TEXTURE_SIZE;
 
+            let inner = collisions.data.inner.write();
+            let index = inner.buffer_index;
+            let buffer = &inner.buffers[index];
+            // bevy::log::info!("copy texture to buffer {}", index);
             render_context.command_encoder.copy_texture_to_buffer(
                 collisions.collisions_agg_texture.as_image_copy(),
                 wgpu::ImageCopyBuffer {
-                    buffer: &collisions.data.buffer,
+                    buffer,
                     layout: wgpu::ImageDataLayout {
                         offset: 0,
                         bytes_per_row: Some(

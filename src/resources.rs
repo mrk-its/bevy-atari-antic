@@ -1,6 +1,6 @@
 use bevy::render2::color::Color;
 use bytemuck::{Pod, Zeroable};
-use crevice::std140::Std140;
+use crevice::std140::{Std140, AsStd140};
 
 #[repr(C)]
 #[derive(Debug, Clone, Copy, Zeroable, Pod)]
@@ -22,4 +22,18 @@ impl Default for AtariPalette {
 
 unsafe impl Std140 for AtariPalette {
     const ALIGNMENT: usize = 4 * 4 * 256;
+}
+
+
+#[repr(C)]
+#[derive(Debug, Clone, Copy, Zeroable, Pod, AsStd140, PartialEq, Eq)]
+pub struct AnticConfig {
+    pub debug_scan_line: i32,
+    pub cnt: i32,
+}
+
+impl Default for AnticConfig {
+    fn default() -> Self {
+        Self { debug_scan_line: 8, cnt: 0,}
+    }
 }

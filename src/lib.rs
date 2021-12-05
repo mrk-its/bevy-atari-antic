@@ -16,7 +16,7 @@ use bevy::{
 pub use wgpu;
 
 mod antic_data;
-mod palette;
+mod resources;
 mod render;
 use render::pass::{AnticPassNode, AnticPhase, CollisionsAggPhase};
 
@@ -135,7 +135,7 @@ impl Plugin for AtariAnticPlugin {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct ModeLineDescr {
     pub mode: u8,
     pub scan_line: usize,

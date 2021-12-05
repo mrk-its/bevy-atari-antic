@@ -26,11 +26,20 @@ struct Palette {
     palette: array<vec4<f32>, 256>;
 };
 
-[[group(0), binding(1)]]
-var<uniform> palette: Palette;
+[[block]]
+struct AnticConfig {
+    debug_scan_line: i32;
+};
+
 
 [[group(0), binding(0)]]
 var memory: texture_2d<u32>;
+
+[[group(0), binding(1)]]
+var<uniform> palette: Palette;
+
+[[group(0), binding(2)]]
+var<uniform> antic_config: AnticConfig;
 
 fn get_gtia_reg(scan_line: i32, k: i32) -> i32 {
     let offset = scan_line * 32 + k;
@@ -470,5 +479,11 @@ fn fragment(
         u32(m0pl | m1pl | m2pl | m3pl),
         u32(p0pl | p1pl | p2pl | p3pl),
     );
-    return FragmentOutput(palette.palette[color_reg], o_CollisionsTarget);
+    var out_color = palette.palette[color_reg];
+    if(scan_line == antic_config.debug_scan_line) {
+        let alpha = 0.5;
+        out_color = vec4<f32>(alpha * vec3<f32>(1.0, 0.0, 0.0) + (1.0 - alpha) * out_color.rgb, 1.0);
+    };
+
+    return FragmentOutput(out_color, o_CollisionsTarget);
 }
