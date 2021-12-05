@@ -382,7 +382,7 @@ fn fragment(
     let missile_shift = vec4<u32>(0u, 2u, 4u, 6u);
     let mdata = vec4<i32>(get_gtia_reg(scan_line, 0x11)) >> missile_shift;
 
-    let msize_ = (vec4<u32>(u32(get_gtia_reg(scan_line, 0x0c))) >> missile_shift) & vec4<u32>(0x3u);
+    let msize_ = (vec4<u32>(get_gtia_reg4(scan_line, 0x0c)) >> missile_shift) & vec4<u32>(0x3u);
     let msize = vec4<f32>(vec4<i32>(4) << msize_);
 
     let m = get_pm_pixels(vpx, 2.0, scan_line, msize, hposm, mdata);
@@ -394,7 +394,7 @@ fn fragment(
 
     let p5 = (prior & 0x10) > 0;
 
-    let psize_ = vec4<u32>(u32(get_gtia_reg(scan_line, 0x08))) & vec4<u32>(0x3u);
+    let psize_ = vec4<u32>(get_gtia_reg4(scan_line, 0x08)) & vec4<u32>(0x3u);
     let psize = vec4<f32>(vec4<i32>(16) << psize_);
     let data = get_gtia_reg4(scan_line, 0x0d);
 
