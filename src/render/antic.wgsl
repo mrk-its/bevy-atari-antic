@@ -49,7 +49,7 @@ fn get_gtia_reg(scan_line: i32, k: i32) -> i32 {
     return i32(v.x & 0xffu);
 }
 
-fn get_gtia_reg4(scan_line: i32, k: i32) -> vec4<i32> {
+fn get_gtia_reg4(scan_line: i32, k: i32) -> vec4<u32> {
     let offset = scan_line * 32 + k;
     let w = offset & 0xff;
     let h = offset >> 8u;
@@ -57,13 +57,13 @@ fn get_gtia_reg4(scan_line: i32, k: i32) -> vec4<i32> {
     let v2: vec4<u32> = textureLoad(memory, vec2<i32>(w+1, h), 0);
     let v3: vec4<u32> = textureLoad(memory, vec2<i32>(w+2, h), 0);
     let v4: vec4<u32> = textureLoad(memory, vec2<i32>(w+3, h), 0);
-    return vec4<i32>(i32(v1.x), i32(v2.x), i32(v3.x), i32(v4.x));
+    return vec4<u32>(v1.x, v2.x, v3.x, v4.x);
 }
 
-fn get_pm_pixels(px: vec4<f32>, w: f32, scan_line: i32, msize: vec4<f32>, hpos: vec4<f32>, data: vec4<i32>) -> vec4<f32> {
+fn get_pm_pixels(px: vec4<f32>, w: f32, scan_line: i32, msize: vec4<f32>, hpos: vec4<f32>, data: vec4<u32>) -> vec4<f32> {
     let cond = vec4<f32>(px >= hpos) * vec4<f32>(px < hpos + msize);
     let bit = vec4<u32>(mix(vec4<f32>(w - 0.001), vec4<f32>(0.0), (px - hpos) / msize));
-    return mix(vec4<f32>(0.0), vec4<f32>(((data >> bit) & vec4<i32>(1)) > vec4<i32>(0)), cond);
+    return mix(vec4<f32>(0.0), vec4<f32>(((data >> bit) & vec4<u32>(1u)) > vec4<u32>(0u)), cond);
 }
 
 fn get_memory(offset: i32) -> i32 {
@@ -380,9 +380,9 @@ fn fragment(
     let vpx = vec4<f32>(px);
 
     let missile_shift = vec4<u32>(0u, 2u, 4u, 6u);
-    let mdata = vec4<i32>(get_gtia_reg(scan_line, 0x11)) >> missile_shift;
+    let mdata = vec4<u32>(u32(get_gtia_reg(scan_line, 0x11))) >> missile_shift;
 
-    let msize_ = (vec4<u32>(get_gtia_reg4(scan_line, 0x0c)) >> missile_shift) & vec4<u32>(0x3u);
+    let msize_ = (vec4<u32>(u32(get_gtia_reg(scan_line, 0x0c))) >> missile_shift) & vec4<u32>(0x3u);
     let msize = vec4<f32>(vec4<i32>(4) << msize_);
 
     let m = get_pm_pixels(vpx, 2.0, scan_line, msize, hposm, mdata);
@@ -394,7 +394,7 @@ fn fragment(
 
     let p5 = (prior & 0x10) > 0;
 
-    let psize_ = vec4<u32>(get_gtia_reg4(scan_line, 0x08)) & vec4<u32>(0x3u);
+    let psize_ = get_gtia_reg4(scan_line, 0x08) & vec4<u32>(0x3u);
     let psize = vec4<f32>(vec4<i32>(16) << psize_);
     let data = get_gtia_reg4(scan_line, 0x0d);
 

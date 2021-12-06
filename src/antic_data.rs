@@ -56,7 +56,7 @@ impl CollisionsData {
 
         // collisions delay
         // TODO: make it configurable? It seems current setting causes some bugs in RiverRaid
-        let offs = 1;
+        let offs = 0;
 
         let index = (inner.buffer_index + len - offs) % inner.buffers.len();
         inner.buffer_index = (inner.buffer_index + 1) % inner.buffers.len();
@@ -143,6 +143,7 @@ impl AnticData {
         }
     }
     pub fn set_gtia_regs(&mut self, scan_line: usize, regs: &crate::GTIARegs) {
+        assert!(scan_line < 248);
         assert!(std::mem::size_of::<crate::GTIARegs>() == 32);
         let mut inner = self.inner.write();
         let ptr = inner.memory.as_mut_ptr() as *mut crate::GTIARegs;
