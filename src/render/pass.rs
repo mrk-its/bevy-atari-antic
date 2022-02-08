@@ -1,7 +1,7 @@
 use bevy::{
     ecs::prelude::*,
     prelude::Handle,
-    render2::{
+    render::{
         color::Color,
         render_asset::RenderAssets,
         render_graph::{Node, NodeRunError, RenderGraphContext},
@@ -134,7 +134,7 @@ impl Node for AnticPassNode {
                 draw_function.draw(
                     world,
                     &mut tracked_pass,
-                    bevy::ecs::entity::Entity::new(0),
+                    bevy::ecs::entity::Entity::from_raw(0),
                     item,
                 );
             }
@@ -194,7 +194,7 @@ impl Node for CollisionsAggNode {
                 draw_function.draw(
                     world,
                     &mut tracked_pass,
-                    bevy::ecs::entity::Entity::new(0),
+                    bevy::ecs::entity::Entity::from_raw(0),
                     item,
                 );
             }

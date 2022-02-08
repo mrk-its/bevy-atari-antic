@@ -10,21 +10,22 @@ version = "0.1.0"
 bytemuck = {version = "1.7", features = ["derive"]}
 crevice = "0"
 futures-lite = "1.11.3"
-parking_lot = "0.11"
-wgpu = {version = "0.11", features = ["spirv"]}
+parking_lot = "0.12.0"
+wgpu = {version = "0.12.0", features = ["spirv"]}
 
 [features]
 default = [
   "webgl",
 ]
 
-webgl = ["bevy/webgl"]
+webgl = []
 
 [dependencies.bevy]
-git = "https://github.com/bevyengine/bevy"
-branch = "main"
+# git = "https://github.com/bevyengine/bevy"
+version = "0.6"
+# branch = "main"
 default_features = false
-features = ["bevy_core_pipeline", "bevy_render2", "bevy_sprite2", "bevy_winit"]
+features = ["bevy_core_pipeline", "bevy_render", "bevy_sprite", "bevy_winit"]
 # path = "../../bevy"
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
@@ -40,10 +41,10 @@ path = "examples/atari_antic.rs"
 # codegen-units = 1
 
 [patch.crates-io]
-glow = {git = "https://github.com/grovesNL/glow"}
-naga = {git = "https://github.com/gfx-rs/naga", rev = "29571cc"}
-wgpu = {git = "https://github.com/mrk-its/wgpu", branch = "master"}
+# glow = {git = "https://github.com/grovesNL/glow"}
+# naga = {git = "https://github.com/gfx-rs/naga", rev = "29571cc"}
+# wgpu = {git = "https://github.com/mrk-its/wgpu", branch = "master"}
 
 [patch."https://github.com/bevyengine/bevy"]
-bevy = {git="https://github.com/mrk-its/bevy", branch="bevy_atari_webgpu"}
+# bevy = {git="https://github.com/mrk-its/bevy", branch="bevy_atari_webgpu"}
 # bevy = {path="../bevy"}

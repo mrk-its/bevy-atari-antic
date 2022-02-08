@@ -5,7 +5,7 @@ use bevy::{
         system::{lifetimeless::*, SystemParamItem},
     },
     prelude::Handle,
-    render2::{
+    render::{
         render_asset::{PrepareAssetError, RenderAsset, RenderAssets},
         render_phase::{
             DrawFunctions, RenderCommand, RenderCommandResult, RenderPhase, TrackedRenderPass,

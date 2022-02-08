@@ -4,17 +4,17 @@ use bevy::{
     ecs::prelude::*,
     math::Vec3,
     prelude::{bevy_main, App, Assets, Handle, Transform},
-    render2::{
+    render::{
         camera::OrthographicCameraBundle, color::Color, renderer::RenderDevice, texture::Image,
         view::Msaa,
     },
     window::WindowDescriptor,
-    PipelinedDefaultPlugins,
+    DefaultPlugins,
 };
 use bevy_atari_antic::{AnticData, GTIARegs};
 use bevy_atari_antic::{AtariAnticPlugin, ModeLineDescr};
 
-use bevy::sprite2::{PipelinedSpriteBundle, Sprite};
+use bevy::sprite::{SpriteBundle, Sprite};
 
 #[derive(Debug)]
 pub struct MemOffsets(pub [usize; 24]);
@@ -243,7 +243,7 @@ fn setup(
 
     commands.spawn().insert_bundle((antic_data_handle,));
 
-    commands.spawn_bundle(PipelinedSpriteBundle {
+    commands.spawn_bundle(SpriteBundle {
         sprite: Sprite::default(),
         texture: main_image_handle,
         transform: Transform {
@@ -258,8 +258,8 @@ fn setup(
 
 const COLLISIONS: bool = cfg!(feature="webgl");
 
-#[bevy_main]
-async fn main() {
+// #[bevy_main]
+fn main() {
     let mut app = App::new();
     app.insert_resource(ClearColor(Color::rgb(0.3, 0.0, 0.6)));
     app.insert_resource(WindowDescriptor {
@@ -290,9 +290,7 @@ async fn main() {
         });
     }
 
-    app.add_plugins_async(PipelinedDefaultPlugins)
-        .await
-        .unwrap();
+    app.add_plugins(DefaultPlugins);
     // .add_plugin(FrameTimeDiagnosticsPlugin::default())
     app.insert_resource(MemOffsets([0; 24]))
         .add_plugin(AtariAnticPlugin {

@@ -1,7 +1,7 @@
 use bevy::{
     prelude::{info, AddAsset, App, Assets, Handle, HandleUntyped, Plugin},
     reflect::TypeUuid,
-    render2::{
+    render::{
         camera::{CameraProjection, OrthographicProjection, WindowOrigin},
         render_asset::RenderAssetPlugin,
         render_component::ExtractComponentPlugin,
@@ -82,7 +82,7 @@ impl Plugin for AtariAnticPlugin {
             .add_plugin(ExtractComponentPlugin::<Handle<AnticData>>::default())
             .add_plugin(RenderAssetPlugin::<AnticData>::default());
 
-        let render_app = app.sub_app(RenderApp);
+        let render_app = app.sub_app_mut(RenderApp);
         render_app
             .init_resource::<DrawFunctions<AnticPhase>>()
             .init_resource::<RenderPhase<AnticPhase>>()

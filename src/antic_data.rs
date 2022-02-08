@@ -4,7 +4,7 @@ use bevy::{
     math::vec2,
     prelude::Handle,
     reflect::TypeUuid,
-    render2::{
+    render::{
         mesh::{Indices, Mesh},
         render_resource::Buffer,
         renderer::RenderDevice,

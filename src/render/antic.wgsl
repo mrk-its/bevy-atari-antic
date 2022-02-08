@@ -21,12 +21,10 @@ let COLPM0: i32 = 0x12;
 let COLPF0: i32 = 0x16;
 let COLBK: i32 = 0x1A;
 
-[[block]]
 struct Palette {
     palette: array<vec4<f32>, 256>;
 };
 
-[[block]]
 struct AnticConfig {
     debug_scan_line: i32;
 };
@@ -226,7 +224,7 @@ fn fragment(
 
     if(mode == 0x0 || px < 0.0 || px >= line_width) {
 
-    } elseif(mode == 2) {
+    } else if(mode == 2) {
         let w = px_scrolled / 8.0;
         let n = i32(w);
         let frac = w - f32(n);
@@ -246,15 +244,15 @@ fn fragment(
             let value = (byte >> bit_offs) & 0xf;
             if(gtia_mode == 1) {
                 color_reg = value | colbk & 0xf0;
-            } elseif(gtia_mode == 3) {
+            } else if(gtia_mode == 3) {
                 color_reg = value << 4u;
                 if(color_reg > 0) {
                     color_reg = color_reg | (colbk & 0xf);
                 }
-            } elseif(gtia_mode == 2) {
+            } else if(gtia_mode == 2) {
                 if(value < 4) {
                     color_reg_index = value + 1;
-                } elseif(value < 8) {
+                } else if(value < 8) {
                     let idx = value - 4;
                     color_reg = get_gtia_reg(scan_line, COLPM0 + idx);
                 } else {
@@ -262,7 +260,7 @@ fn fragment(
                 }
             };
         };
-    } elseif(mode == 4 || mode == 5) {
+    } else if(mode == 4 || mode == 5) {
         let w = px_scrolled / 8.0;
         let n = i32(w);
         let frac = w - f32(n);
@@ -276,7 +274,7 @@ fn fragment(
         if(inv != 0 && color_reg_index == 3) {
             color_reg_index = 4;
         };
-    } elseif(mode == 6 || mode == 7) {
+    } else if(mode == 6 || mode == 7) {
         let w = px_scrolled / 16.0;
         let n = i32(w);
         let frac = w - f32(n);
@@ -294,21 +292,21 @@ fn fragment(
         } else {
             color_reg_index = 0;
         };
-    } elseif(mode == 8) {
+    } else if(mode == 8) {
         let w = px_scrolled / 32.0;;
         let n = i32(w); // byte offset
         let frac = w - f32(n);
         let bit_offs = 6u - u32(frac * 4.0) * 2u; // bit offset in byte
         let byte = get_memory(video_memory_offset + n);
         color_reg_index = (byte >> bit_offs) & 3;
-    } elseif(mode == 9) {
+    } else if(mode == 9) {
         let w = px_scrolled / 32.0;;
         let n = i32(w); // byte offset
         let frac = w - f32(n);
         let bit_offs = 7u - u32(frac * 8.0);
         let byte = get_memory(video_memory_offset + n);
         color_reg_index = (byte >> bit_offs) & 1;
-    } elseif(mode == 10) {
+    } else if(mode == 10) {
         let w = px_scrolled / 16.0;
         let n = i32(w); // byte offset
         let frac = w - f32(n);
@@ -316,7 +314,7 @@ fn fragment(
 
         let byte = get_memory(video_memory_offset + n);
         color_reg_index = (byte >> bit_offs) & 3;
-    } elseif(mode == 11 || mode == 12) {
+    } else if(mode == 11 || mode == 12) {
         let w = px_scrolled / 16.0;
         let n = i32(w); // byte offset
         let frac = w - f32(n);
@@ -324,7 +322,7 @@ fn fragment(
 
         let byte = get_memory(video_memory_offset + n);
         color_reg_index = (byte >> bit_offs) & 1;
-    } elseif(mode == 13 || mode == 14) {
+    } else if(mode == 13 || mode == 14) {
         let w = px_scrolled / 8.0;
         let n = i32(w); // byte offset
         let frac = w - f32(n);
@@ -333,7 +331,7 @@ fn fragment(
         let byte = get_memory(video_memory_offset + n);
         color_reg_index = (byte >> bit_offs) & 3;
 
-    } elseif(mode == 15) {
+    } else if(mode == 15) {
         let w = px_scrolled / 8.0;
         let n = i32(w); // byte offset
         let frac = w - f32(n);
@@ -349,15 +347,15 @@ fn fragment(
             let value = (byte >> bit_offs) & 0xf;
             if(gtia_mode == 1) {
                 color_reg = value | colbk & 0xf0;
-            } elseif(gtia_mode == 3) {
+            } else if(gtia_mode == 3) {
                 color_reg = value << 4u;
                 if(color_reg > 0) {
                     color_reg = color_reg | colbk & 0xf;
                 };
-            } elseif(gtia_mode == 2) {
+            } else if(gtia_mode == 2) {
                 if(value < 4) {
                     color_reg_index = value + 1;
-                } elseif(value < 8) {
+                } else if(value < 8) {
                     color_reg = get_gtia_reg(scan_line, COLPM0 + value - 4);
                 } else {
                     color_reg = colbk;

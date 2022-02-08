@@ -1,4 +1,4 @@
-use bevy::render2::color::Color;
+use bevy::render::color::Color;
 use bytemuck::{Pod, Zeroable};
 use crevice::std140::{Std140, AsStd140};
 
