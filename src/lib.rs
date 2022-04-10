@@ -1,8 +1,7 @@
 use bevy::{
-    prelude::{info, AddAsset, App, Assets, Handle, HandleUntyped, Plugin},
+    prelude::{AddAsset, App, Assets, Handle, HandleUntyped, Plugin},
     reflect::TypeUuid,
     render::{
-        camera::{CameraProjection, OrthographicProjection, WindowOrigin},
         render_asset::RenderAssetPlugin,
         render_component::ExtractComponentPlugin,
         render_graph::RenderGraph,
@@ -59,20 +58,6 @@ pub fn create_main_image(images: &mut Assets<Image>) -> Handle<Image> {
 
 impl Plugin for AtariAnticPlugin {
     fn build(&self, app: &mut App) {
-        let projection = OrthographicProjection {
-            left: 0.0,
-            top: 0.0,
-            right: 384.0,
-            bottom: 240.0,
-            window_origin: WindowOrigin::BottomLeft,
-            ..OrthographicProjection::default()
-        };
-        // let mut projection = OrthographicProjection::default();
-        // projection.window_origin = WindowOrigin::BottomLeft;
-        // projection.update(384.0, 240.0);
-        let projection_matrix = projection.get_projection_matrix();
-        info!("projection matrix: {:?}", projection_matrix);
-
         let mut shaders = app.world.get_resource_mut::<Assets<Shader>>().unwrap();
         let antic_shader = Shader::from_wgsl(include_str!("render/antic.wgsl"));
         shaders.set_untracked(ANTIC_SHADER_HANDLE, antic_shader);

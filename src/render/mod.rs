@@ -179,8 +179,6 @@ impl AnticData {
         main_image_handle: Handle<Image>,
         collisions_data: Option<(&CollisionsAggPipeline, CollisionsData)>,
     ) -> Arc<GpuAnticDataInner> {
-        bevy::prelude::info!("creating atari buffers");
-
         let texture_descriptor = wgpu::TextureDescriptor {
             size: DATA_TEXTURE_SIZE,
             dimension: TextureDimension::D2,
