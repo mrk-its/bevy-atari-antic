@@ -30,10 +30,12 @@ unsafe impl Std140 for AtariPalette {
 pub struct AnticConfig {
     pub debug_scan_line: i32,
     pub cnt: i32,
+    pub _padding_1: i32,
+    pub _padding_2: i32,
 }
 
 impl Default for AnticConfig {
     fn default() -> Self {
-        Self { debug_scan_line: 8, cnt: 0,}
+        Self { debug_scan_line: 8, cnt: 0, _padding_1: 0, _padding_2: 0}
     }
 }

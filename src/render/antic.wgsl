@@ -1,18 +1,19 @@
 struct Vertex {
-    [[location(0)]] position: vec3<f32>;
-    [[location(1)]] uv: vec2<f32>;
-    [[location(2), interpolate(flat)]] custom: vec4<f32>;
+    @location(0) position: vec3<f32>,
+    @location(1) uv: vec2<f32>,
+    @location(2) @interpolate(flat) custom: vec4<f32>,
+    // @location(3) _pad: vec3<f32>
 };
 
 struct VertexOutput {
-    [[builtin(position)]] clip_position: vec4<f32>;
-    [[location(1)]] uv: vec2<f32>;
-    [[location(2), interpolate(flat)]] custom: vec4<f32>;
+    @builtin(position) clip_position: vec4<f32>,
+    @location(1) uv: vec2<f32>,
+    @location(2) @interpolate(flat) custom: vec4<f32>,
 };
 
 struct FragmentOutput {
-     [[location(0)]] color: vec4<f32>;
-     [[location(1)]] collisions: vec4<u32>;
+     @location(0) color: vec4<f32>,
+     @location(1) collisions: vec4<u32>,
 };
 
 let memory_offset: i32 = 7680; // memory reserved for gtia regs: 240 * 32;
@@ -22,21 +23,24 @@ let COLPF0: i32 = 0x16;
 let COLBK: i32 = 0x1A;
 
 struct Palette {
-    palette: array<vec4<f32>, 256>;
+    palette: array<vec4<f32>, 256>
 };
 
 struct AnticConfig {
-    debug_scan_line: i32;
+    debug_scan_line: i32,
+    cnt: i32,
+    _pad1: i32,
+    _pad2: i32,
 };
 
 
-[[group(0), binding(0)]]
+@group(0) @binding(0)
 var memory: texture_2d<u32>;
 
-[[group(0), binding(1)]]
+@group(0) @binding(1)
 var<uniform> palette: Palette;
 
-[[group(0), binding(2)]]
+@group(0) @binding(2)
 var<uniform> antic_config: AnticConfig;
 
 fn get_gtia_reg(scan_line: i32, k: i32) -> i32 {
@@ -78,7 +82,7 @@ fn cond_i32(pred: bool, a: i32, b: i32) -> i32 {
     return b;
 }
 
-[[stage(vertex)]]
+@vertex
 fn vertex(vertex: Vertex) -> VertexOutput {
     let world_position = vec4<f32>(vertex.position, 1.0);
     var out: VertexOutput;
@@ -94,7 +98,7 @@ fn vertex(vertex: Vertex) -> VertexOutput {
     return out;
 }
 
-[[stage(vertex)]]
+@vertex
 fn collision_agg_vertex(vertex: Vertex) -> VertexOutput {
     let world_position = vec4<f32>(vertex.position, 1.0);
     var out: VertexOutput;
@@ -110,11 +114,11 @@ fn collision_agg_vertex(vertex: Vertex) -> VertexOutput {
     return out;
 }
 
-[[stage(fragment)]]
+@fragment
 fn collisions_agg_fragment(
-    [[location(1)]] uv: vec2<f32>,
-    [[location(2), interpolate(flat)]] custom: vec4<f32>
-) -> [[location(0)]] vec4<u32> {
+    @location(1) uv: vec2<f32>,
+    @location(2) @interpolate(flat) custom: vec4<f32>,
+) -> @location(0) vec4<u32> {
     var TEXTURE_HEIGHT = 32;
 # ifdef T_1
     TEXTURE_HEIGHT = 1;
@@ -171,10 +175,10 @@ fn collisions_agg_fragment(
 }
 
 
-[[stage(fragment)]]
+@fragment
 fn fragment(
-    [[location(1)]] uv: vec2<f32>,
-    [[location(2), interpolate(flat)]] custom: vec4<f32>
+    @location(1) uv: vec2<f32>,
+    @location(2) @interpolate(flat) custom: vec4<f32>,
 ) -> FragmentOutput {
     let c0 = u32(custom[0]);
     let c1 = u32(custom[1]);

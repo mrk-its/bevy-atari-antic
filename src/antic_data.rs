@@ -5,13 +5,12 @@ use bevy::{
     prelude::Handle,
     reflect::TypeUuid,
     render::{
-        mesh::{Indices, Mesh},
-        render_resource::Buffer,
+        mesh::{Indices, Mesh, MeshVertexAttribute},
+        render_resource::{Buffer, VertexFormat},
         renderer::RenderDevice,
         texture::Image,
     },
 };
-use futures_lite::future;
 use parking_lot::RwLock;
 use wgpu::{BufferDescriptor, BufferUsages, PrimitiveTopology};
 
@@ -32,59 +31,63 @@ pub struct AnticDataInner {
 
 pub struct CollisionsDataInner {
     pub data: [u64; 240],
-    pub buffers: Vec<Buffer>,
     pub buffer_index: usize,
 }
 #[derive(Clone)]
 pub struct CollisionsData {
+    pub buffers: Vec<Buffer>,
     pub inner: Arc<RwLock<CollisionsDataInner>>,
 }
 
 impl CollisionsData {
     pub fn new(buffers: Vec<Buffer>) -> Self {
         Self {
+            buffers,
             inner: Arc::new(RwLock::new(CollisionsDataInner {
                 data: [0; 240],
-                buffers,
                 buffer_index: 0,
             })),
         }
     }
     pub fn read_collisions(&self, render_device: &RenderDevice) {
-        let mut inner = self.inner.write();
-        let len = inner.buffers.len();
-
-        // collisions delay
-        // TODO: make it configurable? It seems current setting causes some bugs in RiverRaid
-        let offs = 0;
-
-        let index = (inner.buffer_index + len - offs) % inner.buffers.len();
-        inner.buffer_index = (inner.buffer_index + 1) % inner.buffers.len();
-        let buffer = inner.buffers[index].clone();
-        // bevy::log::info!("reading buffer {}", inner.buffer_index);
-        let slice = buffer.slice(..);
-        let map_future = slice.map_async(wgpu::MapMode::Read);
-        render_device.poll(wgpu::Maintain::Wait);
-        future::block_on(map_future).unwrap();
-        {
-            let buffer_view = slice.get_mapped_range();
-            let data: &[u8] = &buffer_view;
-            let data =
-                unsafe { std::slice::from_raw_parts(data.as_ptr() as *const u64, data.len() / 8) };
-            let dest = &mut inner.data;
-            for y in 0..crate::COLLISIONS_AGG_TEXTURE_SIZE.height as usize {
-                if y == 0 {
-                    for x in 0..240 {
-                        dest[x] = data[y << 8 | x];
+        let buffer = {
+            let mut inner = self.inner.write();
+            let len = self.buffers.len();
+    
+            // collisions delay
+            // TODO: make it configurable? It seems current setting causes some bugs in RiverRaid
+            let offs = 0;
+    
+            let index = (inner.buffer_index + len - offs) % self.buffers.len();
+            inner.buffer_index = (inner.buffer_index + 1) % self.buffers.len();
+            // bevy::log::info!("reading buffer {}", inner.buffer_index);
+            &self.buffers[index]
+        };
+        let inner = self.inner.clone();       
+        let buffer2 = buffer.clone();
+        buffer.slice(..).map_async(wgpu::MapMode::Read, move |_result| {
+            {
+                let slice = buffer2.slice(..);
+                let buffer_view = slice.get_mapped_range();
+                let data: &[u8] = &buffer_view;
+                let data =
+                    unsafe { std::slice::from_raw_parts(data.as_ptr() as *const u64, data.len() / 8) };
+                let mut inner = inner.write();
+                    let dest = &mut inner.data;
+                for y in 0..crate::COLLISIONS_AGG_TEXTURE_SIZE.height as usize {
+                    if y == 0 {
+                        for x in 0..240 {
+                            dest[x] = data[y << 8 | x];
+                        }
+                    } else {
+                        for x in 0..240 {
+                            dest[x] |= data[y << 8 | x];
+                        }
                     }
-                } else {
-                    for x in 0..240 {
-                        dest[x] |= data[y << 8 | x];
-                    }
-                }
+                }    
             }
-        }
-        buffer.unmap();
+            buffer2.unmap();
+        });
     }
 }
 
@@ -98,6 +101,9 @@ pub struct AnticData {
 }
 
 const GTIA_REGS_MEMORY: usize = 240 * 32;
+
+const ATTRIBUTE_ZCUSTOM: MeshVertexAttribute =
+    MeshVertexAttribute::new("Vertex_ZCustom", 988540917, VertexFormat::Float32x4);
 
 impl AnticData {
     pub fn new(
@@ -197,9 +203,9 @@ impl AnticData {
         ];
         let indices = vec![0, 2, 1, 0, 3, 2];
 
-        mesh.set_attribute(Mesh::ATTRIBUTE_POSITION, positions);
-        mesh.set_attribute(Mesh::ATTRIBUTE_UV_0, uvs);
-        mesh.set_attribute("Vertex_ZCustom", custom);
+        mesh.insert_attribute(Mesh::ATTRIBUTE_POSITION, positions);
+        mesh.insert_attribute(Mesh::ATTRIBUTE_UV_0, uvs);
+        mesh.insert_attribute(ATTRIBUTE_ZCUSTOM, custom);
         mesh.set_indices(Some(Indices::U16(indices)));
         mesh
     }
@@ -233,9 +239,9 @@ impl AnticData {
             push_indices(&mut indices, index_offset);
         }
 
-        mesh.set_attribute(Mesh::ATTRIBUTE_POSITION, positions);
-        mesh.set_attribute(Mesh::ATTRIBUTE_UV_0, uvs);
-        mesh.set_attribute("Vertex_ZCustom", custom);
+        mesh.insert_attribute(Mesh::ATTRIBUTE_POSITION, positions);
+        mesh.insert_attribute(Mesh::ATTRIBUTE_UV_0, uvs);
+        mesh.insert_attribute(ATTRIBUTE_ZCUSTOM, custom);
         mesh.set_indices(Some(Indices::U16(indices)));
         mesh
     }

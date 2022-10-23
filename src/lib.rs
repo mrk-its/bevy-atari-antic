@@ -3,7 +3,7 @@ use bevy::{
     reflect::TypeUuid,
     render::{
         render_asset::RenderAssetPlugin,
-        render_component::ExtractComponentPlugin,
+        extract_component::ExtractComponentPlugin,
         render_graph::RenderGraph,
         render_phase::{AddRenderCommand, DrawFunctions, RenderPhase},
         render_resource::*,
@@ -76,20 +76,23 @@ impl Plugin for AtariAnticPlugin {
             .init_resource::<render::AnticPipeline>()
             .init_resource::<render::CollisionsAggPipeline>()
             .init_resource::<HashMap<Handle<Image>, render::GpuAnticData>>()
-            .init_resource::<SpecializedPipelines<render::AnticPipeline>>()
-            .init_resource::<SpecializedPipelines<render::CollisionsAggPipeline>>()
+            .init_resource::<SpecializedRenderPipelines<render::AnticPipeline>>()
+            .init_resource::<SpecializedRenderPipelines<render::CollisionsAggPipeline>>()
             .add_render_command::<AnticPhase, render::SetAnticPipeline>()
             .add_render_command::<CollisionsAggPhase, render::SetCollisionsAggPipeline>()
             .add_system_to_stage(RenderStage::Queue, render::queue_meshes);
 
         let antic_node = AnticPassNode::default();
 
-        let mut graph = render_app.world.get_resource_mut::<RenderGraph>().unwrap();
+        let mut _graph = render_app.world.get_resource_mut::<RenderGraph>().unwrap();
+        let graph = _graph
+            .get_sub_graph_mut(bevy::core_pipeline::core_2d::graph::NAME)
+            .unwrap();
         graph.add_node("antic_node", antic_node);
         graph
             .add_node_edge(
                 "antic_node",
-                bevy::core_pipeline::node::MAIN_PASS_DEPENDENCIES,
+                "main_pass",
             )
             .unwrap();
 
@@ -99,7 +102,7 @@ impl Plugin for AtariAnticPlugin {
             graph
                 .add_node_edge(
                     "collisions_agg_node",
-                    bevy::core_pipeline::node::MAIN_PASS_DEPENDENCIES,
+                    "main_pass",
                 )
                 .unwrap();
             graph
@@ -113,7 +116,7 @@ impl Plugin for AtariAnticPlugin {
             graph
                 .add_node_edge(
                     "collisions_agg_read_node",
-                    bevy::core_pipeline::node::MAIN_PASS_DEPENDENCIES,
+                    "main_pass",
                 )
                 .unwrap();
         }

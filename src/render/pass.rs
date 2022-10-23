@@ -6,16 +6,15 @@ use bevy::{
         render_asset::RenderAssets,
         render_graph::{Node, NodeRunError, RenderGraphContext},
         render_phase::{DrawFunctionId, DrawFunctions, PhaseItem, RenderPhase, TrackedRenderPass},
-        render_resource::CachedPipelineId,
         renderer::RenderContext,
-        texture::Image,
+        texture::Image, render_resource::CachedRenderPipelineId,
     },
 };
 use wgpu::{LoadOp, Operations, RenderPassColorAttachment, RenderPassDescriptor};
 
 use crate::AnticData;
 pub struct AnticPhase {
-    pub pipeline: CachedPipelineId,
+    pub pipeline: CachedRenderPipelineId,
     pub entity: Entity,
     pub draw_function: DrawFunctionId,
     pub antic_data_handle: Handle<AnticData>,
@@ -23,7 +22,7 @@ pub struct AnticPhase {
     pub collisions: bool,
 }
 pub struct CollisionsAggPhase {
-    pub pipeline: CachedPipelineId,
+    pub pipeline: CachedRenderPipelineId,
     pub entity: Entity,
     pub draw_function: DrawFunctionId,
     pub antic_data_handle: Handle<AnticData>,
@@ -87,7 +86,7 @@ impl Node for AnticPassNode {
                     .unwrap()
                     .collisions_texture_view;
                 vec![
-                    RenderPassColorAttachment {
+                    Some(RenderPassColorAttachment {
                         view: main_texture,
                         resolve_target: None,
                         ops: Operations {
@@ -95,25 +94,25 @@ impl Node for AnticPassNode {
                             load: LoadOp::Load,
                             store: true,
                         },
-                    },
-                    RenderPassColorAttachment {
+                    }),
+                    Some(RenderPassColorAttachment {
                         view: collisions_texture,
                         resolve_target: None,
                         ops: Operations {
                             load: LoadOp::Load,
                             store: true,
                         },
-                    },
+                    }),
                 ]
             } else {
-                vec![RenderPassColorAttachment {
+                vec![Some(RenderPassColorAttachment {
                     view: main_texture,
                     resolve_target: None,
                     ops: Operations {
                         load: LoadOp::Load,
                         store: true,
                     },
-                }]
+                })]
             };
             let pass_descriptor = RenderPassDescriptor {
                 label: Some("antic_main_pass"),
@@ -167,7 +166,7 @@ impl Node for CollisionsAggNode {
 
             let collisions_agg_pass_descriptor = RenderPassDescriptor {
                 label: Some("collisioons_agg_pass"),
-                color_attachments: &[RenderPassColorAttachment {
+                color_attachments: &[Some(RenderPassColorAttachment {
                     view: &collisions_data.collisions_agg_texture_view,
                     resolve_target: None,
                     ops: Operations {
@@ -175,7 +174,7 @@ impl Node for CollisionsAggNode {
                         load: LoadOp::Load,
                         store: true,
                     },
-                }],
+                })],
                 depth_stencil_attachment: None,
             };
 
@@ -229,7 +228,7 @@ impl Node for CollisionsAggReadNode {
 
             let inner = collisions.data.inner.write();
             let index = inner.buffer_index;
-            let buffer = &inner.buffers[index];
+            let buffer = &collisions.data.buffers[index];
             // bevy::log::info!("copy texture to buffer {}", index);
             render_context.command_encoder.copy_texture_to_buffer(
                 collisions.collisions_agg_texture.as_image_copy(),

@@ -210,14 +210,14 @@ impl AnticData {
         let vertex_buffer = render_device.create_buffer(&BufferDescriptor {
             label: Some("atari_vertex_buffer"),
             usage: BufferUsages::VERTEX | BufferUsages::COPY_DST,
-            size: 1000000, // TODO
+            size: 1024 * 1024, // TODO
             mapped_at_creation: false,
         });
 
         let index_buffer = render_device.create_buffer(&BufferDescriptor {
             label: Some("atari_index_buffer"),
             usage: BufferUsages::INDEX | BufferUsages::COPY_DST,
-            size: 1000000, // TODO
+            size: 1024 * 1024, // TODO
             mapped_at_creation: false,
         });
 
@@ -277,7 +277,8 @@ impl AnticData {
             let collisions_agg_vertex_buffer = render_device.create_buffer(&BufferDescriptor {
                 label: Some("collisions_agg_vertex_buffer"),
                 usage: BufferUsages::VERTEX | BufferUsages::COPY_DST,
-                size: 4 * 36, // 36 is the size of custom vertex data
+                // size: 4 * 36, // 36 is the size of custom vertex data
+                size: 4 * 48,  // padded
                 mapped_at_creation: false,
             });
 
@@ -408,29 +409,29 @@ pub struct AnticPipelineKey {
     collisions: bool,
 }
 
-impl SpecializedPipeline for AnticPipeline {
+impl SpecializedRenderPipeline for AnticPipeline {
     type Key = AnticPipelineKey;
 
     fn specialize(&self, key: Self::Key) -> RenderPipelineDescriptor {
         let targets = if key.collisions {
             vec![
-                ColorTargetState {
+                Some(ColorTargetState {
                     format: TextureFormat::Rgba8UnormSrgb,
                     blend: None,
                     write_mask: ColorWrites::ALL,
-                },
-                ColorTargetState {
+                }),
+                Some(ColorTargetState {
                     format: TextureFormat::Rgba16Uint,
                     blend: None,
                     write_mask: ColorWrites::ALL,
-                },
+                }),
             ]
         } else {
-            vec![ColorTargetState {
+            vec![Some(ColorTargetState {
                 format: TextureFormat::Rgba8UnormSrgb,
                 blend: None,
                 write_mask: ColorWrites::ALL,
-            }]
+            })]
         };
 
         RenderPipelineDescriptor {
@@ -460,6 +461,11 @@ impl SpecializedPipeline for AnticPipeline {
                             offset: 20,
                             shader_location: 2,
                         },
+                        // VertexAttribute {
+                        //     format: VertexFormat::Float32x3,
+                        //     offset: 36,
+                        //     shader_location: 3,
+                        // },
                     ],
                 }],
                 entry_point: "vertex".into(),
@@ -489,7 +495,7 @@ impl SpecializedPipeline for AnticPipeline {
 #[derive(PartialEq, Eq, Hash, Clone)]
 pub struct CollisionsAggPipelineKey(u32);
 
-impl SpecializedPipeline for CollisionsAggPipeline {
+impl SpecializedRenderPipeline for CollisionsAggPipeline {
     type Key = CollisionsAggPipelineKey;
 
     fn specialize(&self, key: Self::Key) -> RenderPipelineDescriptor {
@@ -520,6 +526,11 @@ impl SpecializedPipeline for CollisionsAggPipeline {
                             offset: 20,
                             shader_location: 2,
                         },
+                        // VertexAttribute {
+                        //     format: VertexFormat::Float32x3,
+                        //     offset: 36,
+                        //     shader_location: 3,
+                        // },
                     ],
                 }],
                 entry_point: "collision_agg_vertex".into(),
@@ -528,11 +539,11 @@ impl SpecializedPipeline for CollisionsAggPipeline {
                 shader: ANTIC_SHADER_HANDLE.typed::<Shader>(),
                 shader_defs: vec![format!("T_{}", key.0)],
                 entry_point: "collisions_agg_fragment".into(),
-                targets: vec![ColorTargetState {
+                targets: vec![Some(ColorTargetState {
                     format: TextureFormat::Rgba32Uint,
                     blend: None,
                     write_mask: ColorWrites::ALL,
-                }],
+                })],
             }),
             layout: Some(vec![self.data_layout.clone()]),
             depth_stencil: None,
@@ -558,9 +569,9 @@ pub fn queue_meshes(
     collisions_agg_pipeline: Res<CollisionsAggPipeline>,
     mut render_phase: ResMut<RenderPhase<AnticPhase>>,
     mut collisions_agg_render_phase: ResMut<RenderPhase<CollisionsAggPhase>>,
-    mut pipelines: ResMut<SpecializedPipelines<AnticPipeline>>,
-    mut collision_agg_pipelines: ResMut<SpecializedPipelines<CollisionsAggPipeline>>,
-    mut pipeline_cache: ResMut<RenderPipelineCache>,
+    mut pipelines: ResMut<SpecializedRenderPipelines<AnticPipeline>>,
+    mut collision_agg_pipelines: ResMut<SpecializedRenderPipelines<CollisionsAggPipeline>>,
+    mut pipeline_cache: ResMut<PipelineCache>,
     atari_datas: Res<RenderAssets<AnticData>>,
     antic_data_query: Query<(Entity, &Handle<AnticData>)>,
 ) {
@@ -607,7 +618,7 @@ pub fn queue_meshes(
 pub struct SetAnticPipeline;
 impl RenderCommand<AnticPhase> for SetAnticPipeline {
     type Param = (
-        SRes<RenderPipelineCache>,
+        SRes<PipelineCache>,
         SRes<RenderAssets<AnticData>>,
         SQuery<Read<Handle<AnticData>>>,
     );
@@ -627,7 +638,7 @@ impl RenderCommand<AnticPhase> for SetAnticPipeline {
         if index_count == 0 {
             return RenderCommandResult::Failure;
         }
-        if let Some(pipeline) = pipeline_cache.into_inner().get(item.pipeline) {
+        if let Some(pipeline) = pipeline_cache.into_inner().get_render_pipeline(item.pipeline) {
             pass.set_render_pipeline(pipeline);
             pass.set_bind_group(0, &gpu_atari_data.inner.main_bind_group, &[]);
             pass.set_vertex_buffer(0, gpu_atari_data.inner.vertex_buffer.slice(..));
@@ -648,7 +659,7 @@ impl RenderCommand<AnticPhase> for SetAnticPipeline {
 pub struct SetCollisionsAggPipeline;
 impl RenderCommand<CollisionsAggPhase> for SetCollisionsAggPipeline {
     type Param = (
-        SRes<RenderPipelineCache>,
+        SRes<PipelineCache>,
         SRes<RenderAssets<AnticData>>,
         SQuery<Read<Handle<AnticData>>>,
     );
@@ -667,7 +678,7 @@ impl RenderCommand<CollisionsAggPhase> for SetCollisionsAggPipeline {
         let collisions = gpu_atari_data.inner.collisions.as_ref().unwrap();
 
         let index_count = 6;
-        if let Some(pipeline) = pipeline_cache.into_inner().get(item.pipeline) {
+        if let Some(pipeline) = pipeline_cache.into_inner().get_render_pipeline(item.pipeline) {
             pass.set_render_pipeline(pipeline);
             pass.set_bind_group(0, &collisions.collisions_agg_bind_group, &[]);
             // TODO - create separate, simple mesh for collision

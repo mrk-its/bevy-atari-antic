@@ -1,11 +1,10 @@
 use bevy::{
     app::AppExit,
-    core_pipeline::ClearColor,
     ecs::prelude::*,
     math::Vec3,
-    prelude::{bevy_main, App, Assets, Handle, Transform},
+    prelude::{App, Assets, Handle, Transform, ClearColor, Camera2dBundle},
     render::{
-        camera::OrthographicCameraBundle, color::Color, renderer::RenderDevice, texture::Image,
+        color::Color, renderer::RenderDevice, texture::Image,
         view::Msaa,
     },
     window::WindowDescriptor,
@@ -253,7 +252,7 @@ fn setup(
         ..Default::default()
     });
 
-    commands.spawn_bundle(OrthographicCameraBundle::new_2d());
+    commands.spawn_bundle(Camera2dBundle::default());
 }
 
 const COLLISIONS: bool = cfg!(feature="webgl");
